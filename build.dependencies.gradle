@@ -4,6 +4,7 @@ repositories {
 
     maven { url= "https://maven.pedropathing.com/" }
     maven { url = "https://mymaven.bylazar.com/releases" }
+
 }
 
 dependencies {
@@ -21,5 +22,14 @@ dependencies {
 
     implementation 'com.bylazar:fullpanels:1.0.2'
     implementation 'androidx.appcompat:appcompat:1.2.0'
+
+    implementation 'com.pedropathing:ftc:2.0.0'
+    implementation 'com.pedropathing:telemetry:0.0.6'
+    // Pedro Pathing (FTC artifact)
+    implementation 'com.pedropathing:ftc:2.0.0'
+
+    // Pedro Telemetry + Panels used by the Quickstart docs
+    implementation 'com.pedropathing:telemetry:0.0.6'
+    implementation 'com.bylazar:fullpanels:1.0.2'
 }
 

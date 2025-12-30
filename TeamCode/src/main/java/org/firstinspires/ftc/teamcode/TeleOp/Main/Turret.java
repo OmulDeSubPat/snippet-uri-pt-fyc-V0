@@ -36,7 +36,7 @@ public class Turret {
         MotorTureta.setPower(0);
     }
 
-    public double Limitare(double Putere) {
+    public static double Limitare(double Putere) {
         double UnghiTureta = MotorTureta.getCurrentPosition() * DEG_PER_TICK;
         if (UnghiTureta >= RIGHT_LIMIT) {
             integral = 0;

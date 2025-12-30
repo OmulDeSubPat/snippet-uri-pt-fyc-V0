@@ -18,7 +18,7 @@ public class Drive {
         this.opMode = opMode;
     }
 
-    private void SetWheelsPower() {
+    void SetWheelsPower() {
         double left_x  = opMode.gamepad1.left_stick_x;
         double left_y  = -opMode.gamepad1.left_stick_y; // forward is negative
         double right_x = opMode.gamepad1.right_stick_x;

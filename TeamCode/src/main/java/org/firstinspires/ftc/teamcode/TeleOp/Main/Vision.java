@@ -27,7 +27,12 @@ public class Vision {
     double PutereScanareLocala = 0.12;
     double PerioadaSchimbariiSensului = 0.4;
 
-    boolean ConditieScanarePlanetara = false;
+    boolean ConditieScanarePlanetara = false;]double kP = 0.002;
+    double kI = 0.0001;
+    double kD = 0.0006;
+    double integral = 0;
+    double lastError = 0;
+    long lastTime = 0;
 
     public Vision(LinearOpMode opMode, Turret turret) {
         this.opMode = opMode;
@@ -47,47 +52,93 @@ public class Vision {
         imu.initialize(new IMU.Parameters(orientation));
     }
 
-    public void aliniereTureta() {
-        turret.lastTime = System.nanoTime();
-        while (opMode.opModeIsActive()) {
+    public void aliniereTureta()
+    {
+        long lastTime = System.nanoTime();
+        YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
+        limelight.updateRobotOrientation(ypr.getYaw());
 
-            YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
-            limelight.updateRobotOrientation(ypr.getYaw());
-
-            LLResult result = limelight.getLatestResult();
-            double tx;
-            long OraActuala = System.nanoTime();
-
-            if (result != null && result.isValid()) {
-                tx = -result.getTx();
-                lastTx = tx;
-                UltimaDataVazut = OraActuala;
-                TimpDeLaPierdereaTargetului = 0;
-            } else {
-                continue;
+        LLResult result = limelight.getLatestResult();
+        double tx=0;
+        long OraActuala=System.nanoTime(); //start timer pentru cazul in care nu mai e target
+        if (result != null && result.isValid()) {
+            tx = -result.getTx();
+            lastTx = tx;
+            UltimaDataVazut=OraActuala;
+            TimpDeLaPierdereaTargetului=0;
+        } else {
+            double UltimaDataVazutSecunde = (OraActuala - UltimaDataVazut) / 1e9;
+            if (UltimaDataVazutSecunde <= TimpPauza) {
+                MotorTureta.setPower(0);
             }
+            if (TimpDeLaPierdereaTargetului == 0)
+                TimpDeLaPierdereaTargetului = OraActuala;
 
-            if (Math.abs(tx) <= txDeadzone) {
-                turret.MotorTureta.setPower(0);
-                turret.integral = 0;
-                turret.lastError = 0;
-                continue;
+
+            if (UltimaDataVazutSecunde <= TimpCautareLocala  && UltimaDataVazutSecunde >=TimpPauza) {
+                double TimpulLocal = (OraActuala - TimpDeLaPierdereaTargetului) / 1e9; //timpul de cand a inceput cautarea locala
+                double DirectiaInitiala;
+                if (lastTx > 0)
+                    DirectiaInitiala = 1.0;
+                else
+                    DirectiaInitiala = -1.0;
+
+
+                boolean SchimbareSens;
+                if ((int) (TimpulLocal / PerioadaSchimbariiSensului) % 2 == 0)
+                    SchimbareSens = true;
+                else
+                    SchimbareSens = false;
+
+
+                double Directie;
+                if (SchimbareSens)
+                    Directie = DirectiaInitiala;
+                else
+                    Directie = -DirectiaInitiala;
+
+
+                double Putere = Limitare(PutereScanareLocala * -Directie);
+                MotorTureta.setPower(Putere);
+
             }
+            ConditieScanarePlanetara= UltimaDataVazutSecunde > TimpCautareLocala;
 
-            long now = System.nanoTime();
-            double dt = (now - turret.lastTime) / 1e9;
-            turret.lastTime = now;
+            if (ConditieScanarePlanetara == true)
+                scanDir = lastTx > 0;
+            double UnghiTureta = MotorTureta.getCurrentPosition() * DEG_PER_TICK;
+            double PutereCautare=scanSpeed*(scanDir ? 1 : -1);
+            PutereCautare = Limitare(PutereCautare);
+            MotorTureta.setPower(PutereCautare);
 
-            double error = -tx;
-            turret.integral += error * dt;
-            double derivative = (error - turret.lastError) / dt;
-            turret.lastError = error;
-
-            double output = turret.kP * error + turret.kI * turret.integral + turret.kD * derivative;
-            output = Range.clip(output, -0.5, 0.5);
-            output = turret.Limitare(output);
-
-            turret.MotorTureta.setPower(output);
         }
+        // STOP MOTOR IF TX IS ±1.5
+        if (Math.abs(tx) <= txDeadzone) {
+            MotorTureta.setPower(0);
+            integral = 0;
+            lastError = 0;
+            ConditieScanarePlanetara=false;
+
+        }
+
+        // PID CONTROL
+        long now = System.nanoTime();
+        double dt = (now - lastTime) / 1e9;
+        lastTime = now;
+
+        double error = -tx;
+        integral += error * dt;
+        double derivative = (error - lastError) / dt;
+        lastError = error;
+
+        double output = kP * error + kI * integral + kD * derivative;
+        output = Range.clip(output, -0.5, 0.5);
+
+        // Apply limits with nudge if stuck
+        output = Turret.Limitare(output);
+
+        MotorTureta.setPower(output);
+
+
     }
-}
+    }

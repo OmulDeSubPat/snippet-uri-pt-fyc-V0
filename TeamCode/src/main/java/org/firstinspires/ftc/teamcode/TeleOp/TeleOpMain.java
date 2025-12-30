@@ -216,12 +216,11 @@ public class TeleOpMain extends LinearOpMode {
     public void aliniereTureta()
     {
         lastTime = System.nanoTime();
-        while (opModeIsActive()) {
             YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
             limelight.updateRobotOrientation(ypr.getYaw());
 
             LLResult result = limelight.getLatestResult();
-            double tx;
+            double tx=0;
             long OraActuala=System.nanoTime(); //start timer pentru cazul in care nu mai e target
             if (result != null && result.isValid()) {
                 tx = -result.getTx();
@@ -235,7 +234,6 @@ public class TeleOpMain extends LinearOpMode {
                     telemetry.addData("Status", "Pauza de cautare");
                     telemetry.addData("Vazut acum:", UltimaDataVazutSecunde);
                     telemetry.update();
-                    continue;
                 }
                 if (TimpDeLaPierdereaTargetului == 0)
                     TimpDeLaPierdereaTargetului = OraActuala;
@@ -271,7 +269,6 @@ public class TeleOpMain extends LinearOpMode {
                     telemetry.addData("Timpul local", TimpulLocal);
                     telemetry.addData("Ultimul tx", lastTx);
                     telemetry.update();
-                    continue;
                 }
                 ConditieScanarePlanetara= UltimaDataVazutSecunde > TimpCautareLocala;
 
@@ -285,7 +282,6 @@ public class TeleOpMain extends LinearOpMode {
                 telemetry.addData("Status:", "Cautare planetara");
                 telemetry.addData("Unghi Tureta", UnghiTureta);
                 telemetry.update();
-                continue;
             }
             // STOP MOTOR IF TX IS ±1.5
             if (Math.abs(tx) <= txDeadzone) {
@@ -297,7 +293,6 @@ public class TeleOpMain extends LinearOpMode {
                 telemetry.addData("Aligned (TX in ±1.5)", true);
                 telemetry.addData("tx", tx);
                 telemetry.update();
-                continue;
             }
 
             // PID CONTROL
@@ -323,7 +318,7 @@ public class TeleOpMain extends LinearOpMode {
             telemetry.addData("Turret Angle", MotorTureta.getCurrentPosition() * DEG_PER_TICK);
             telemetry.addData("Scanning", false);
             telemetry.update();
-        }
+
     }
     private double getHue(int r, int g, int b) {
         int max = Math.max(r, Math.max(g, b));

@@ -19,11 +19,9 @@ public class Robot {
     }
 
     public void init() {
-        poses.servoInit();
-        poses.DcInit();
-        drive.InitWheels();
-        turret.init();
-        vision.limeInit();
-        colorSystem.InitColorSensor();
+
+    }
+
+    public void servoInit() {
     }
 }

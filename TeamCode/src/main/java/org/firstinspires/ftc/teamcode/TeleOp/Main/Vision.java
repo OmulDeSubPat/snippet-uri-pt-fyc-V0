@@ -1,5 +1,7 @@
 package org.firstinspires.ftc.teamcode.TeleOp.Main;
 
+import static org.firstinspires.ftc.teamcode.TeleOp.Main.Turret.Limitare;
+
 import com.qualcomm.hardware.limelightvision.*;
 import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
@@ -27,7 +29,8 @@ public class Vision {
     double PutereScanareLocala = 0.12;
     double PerioadaSchimbariiSensului = 0.4;
 
-    boolean ConditieScanarePlanetara = false;]double kP = 0.002;
+    boolean ConditieScanarePlanetara = false;
+    double kP = 0.002;
     double kI = 0.0001;
     double kD = 0.0006;
     double integral = 0;
@@ -69,7 +72,7 @@ public class Vision {
         } else {
             double UltimaDataVazutSecunde = (OraActuala - UltimaDataVazut) / 1e9;
             if (UltimaDataVazutSecunde <= TimpPauza) {
-                MotorTureta.setPower(0);
+             //   MotorTureta.setPower(0);
             }
             if (TimpDeLaPierdereaTargetului == 0)
                 TimpDeLaPierdereaTargetului = OraActuala;
@@ -99,22 +102,22 @@ public class Vision {
 
 
                 double Putere = Limitare(PutereScanareLocala * -Directie);
-                MotorTureta.setPower(Putere);
+                //MotorTureta.setPower(Putere);
 
             }
             ConditieScanarePlanetara= UltimaDataVazutSecunde > TimpCautareLocala;
 
             if (ConditieScanarePlanetara == true)
                 scanDir = lastTx > 0;
-            double UnghiTureta = MotorTureta.getCurrentPosition() * DEG_PER_TICK;
+        //    double UnghiTureta = MotorTureta.getCurrentPosition() * DEG_PER_TICK;
             double PutereCautare=scanSpeed*(scanDir ? 1 : -1);
             PutereCautare = Limitare(PutereCautare);
-            MotorTureta.setPower(PutereCautare);
+          //  MotorTureta.setPower(PutereCautare);
 
         }
         // STOP MOTOR IF TX IS ±1.5
         if (Math.abs(tx) <= txDeadzone) {
-            MotorTureta.setPower(0);
+         //   MotorTureta.setPower(0);
             integral = 0;
             lastError = 0;
             ConditieScanarePlanetara=false;
@@ -135,9 +138,9 @@ public class Vision {
         output = Range.clip(output, -0.5, 0.5);
 
         // Apply limits with nudge if stuck
-        output = Turret.Limitare(output);
+        output = Limitare(output);
 
-        MotorTureta.setPower(output);
+       // MotorTureta.setPower(output);
 
 
     }

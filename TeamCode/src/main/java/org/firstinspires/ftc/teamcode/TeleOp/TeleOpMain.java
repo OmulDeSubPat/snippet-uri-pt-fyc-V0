@@ -31,12 +31,15 @@ public class TeleOpMain extends LinearOpMode {
     // Motoare unrelated de sasiu
 
     Servo ejector ;//servo ul care baga mingile in flywheel
+    Servo ungiTuretaOy;//cea care asigura ca unghiul turetei e pe apriltag pe oy
+    //nici macar nu stiu daca mai exista
     DcMotor matura;//intake ul activ, (ala pasiv unde e? ~tibichi)
     DcMotor flywheel;//cel care lanseaza mingea
     DcMotor spinner;//cel care roteste mingile in rezervor
     DcMotorEx MotorTureta;//cel care misca tureta
 
-    //Constante PID
+    //Constante PID pt Tureta doar
+    //TODO//sa se puna pid ul si pt spinner/rezolver
     double kP = 0.002;
     double kI = 0.0001;
     double kD = 0.0006;
@@ -53,7 +56,7 @@ public class TeleOpMain extends LinearOpMode {
     double nudgePower = 0.0; //puterea nudge ului pentru deblocarea turetei(nu cred ca o sa folosesc asa ceva~tibichi)
 
 
-    //Variabile pentru durata de cautare
+    //Variabile pentru durata de cautare aka nebunia lu tibi
     long UltimaDataVazut=0;
     long TimpDeLaPierdereaTargetului=0;
     double TimpPauza=0.3;
@@ -72,15 +75,18 @@ public class TeleOpMain extends LinearOpMode {
 
 
     //variabile colorate 😉
+    //TODO//sa fie folosite corect
     int[] last5 = new int[5];
     int index = 0;
     ColorSensor colorsensor;
 
-    // Variabile Misc
+    // Variabile Misc/Vision
     Limelight3A limelight;
     IMU imu;
 
-    boolean ConditieScanarePlanetara =false;
+    boolean ConditieScanarePlanetara =false;//cautare planeta inseamna
+    // cautarea mai extinsa iar cautarea locala cea cu un range mai mic
+    //pt prosti o trebuit sa scriu asta
 
     private void InitWheels() {
         front_left = hardwareMap.dcMotor.get("leftFront");
@@ -93,6 +99,7 @@ public class TeleOpMain extends LinearOpMode {
         front_left.setDirection(DcMotorSimple.Direction.FORWARD);
         back_left.setDirection(DcMotorSimple.Direction.FORWARD);
     }
+    //TODO// sa l folsoesc))
     public void InitColorSensor() {
         colorsensor = hardwareMap.colorSensor.get("colorsensor");
     }
@@ -125,6 +132,7 @@ public class TeleOpMain extends LinearOpMode {
 
     private void servoInit() {
         ejector = hardwareMap.servo.get("ejector");
+        ungiTuretaOy = hardwareMap.servo.get("unghituretaoy");
 
     }
 
@@ -143,7 +151,7 @@ public class TeleOpMain extends LinearOpMode {
         matura = hardwareMap.dcMotor.get("matura");
 
         flywheel = hardwareMap.dcMotor.get("flywheel");
-        flywheel.setPower(0.3);
+        flywheel.setPower(0.3);//pentru a nu avea un cold start TODO de tunat empiric
 
         spinner = hardwareMap.dcMotor.get("spinner");
         spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
@@ -156,7 +164,7 @@ public class TeleOpMain extends LinearOpMode {
     public void limeInit() {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(5);
-        limelight.start(); // REQUIRED
+        limelight.start();
 
         imu = hardwareMap.get(IMU.class, "imu");
         RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
@@ -178,7 +186,7 @@ public class TeleOpMain extends LinearOpMode {
         if (UnghiTureta >= RIGHT_LIMIT) {
             integral = 0;
             if (Putere > 0) {
-                // nudge slightly to the left
+                // nudge = un mic "cot" in caz ca se blocheaza tureta
                 return -nudgePower;
             }
         }
@@ -186,7 +194,6 @@ public class TeleOpMain extends LinearOpMode {
         if (UnghiTureta <= LEFT_LIMIT) {
             integral = 0;
             if (Putere < 0) {
-                // nudge slightly to the right
                 return nudgePower;
             }
         }
@@ -208,13 +215,14 @@ public class TeleOpMain extends LinearOpMode {
             flywheel.setPower(1);
             matura.setPower(0);
             ejector.setPosition(0.555);
-            //sa se miste 120 de grade spinner ul
+            //TODO sa se miste 120 de grade spinner ul + gandit spinner autonom
 
         }
     }
 
     public void aliniereTureta()
     {
+        //tibi schizo
         lastTime = System.nanoTime();
             YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
             limelight.updateRobotOrientation(ypr.getYaw());
@@ -283,7 +291,7 @@ public class TeleOpMain extends LinearOpMode {
                 telemetry.addData("Unghi Tureta", UnghiTureta);
                 telemetry.update();
             }
-            // STOP MOTOR IF TX IS ±1.5
+            // opresti cautarea daca gaseste tinta
             if (Math.abs(tx) <= txDeadzone) {
                 MotorTureta.setPower(0);
                 integral = 0;
@@ -295,7 +303,7 @@ public class TeleOpMain extends LinearOpMode {
                 telemetry.update();
             }
 
-            // PID CONTROL
+            // PID
             long now = System.nanoTime();
             double dt = (now - lastTime) / 1e9;
             lastTime = now;
@@ -308,7 +316,6 @@ public class TeleOpMain extends LinearOpMode {
             double output = kP * error + kI * integral + kD * derivative;
             output = Range.clip(output, -0.5, 0.5);
 
-            // Apply limits with nudge if stuck
             output = Limitare(output);
 
             MotorTureta.setPower(output);
@@ -342,6 +349,7 @@ public class TeleOpMain extends LinearOpMode {
         double h = getHue(r, g, b);
 
         int detected;
+        //nebunia mea si alu fane
         if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
         else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
         else if (h > 135 && h < 160) detected = 1;
@@ -351,10 +359,9 @@ public class TeleOpMain extends LinearOpMode {
         last5[index] = detected;
         index = (index + 1) % 5;
 
-        int count0 = 0, count1 = 0, count2 = 0;
+        int  count1 = 0, count2 = 0;
         for (int v : last5) {
-            if (v == 0) count0++;
-            else if (v == 1) count1++;
+            if (v == 1) count1++;
             else if (v == 2) count2++;
         }
 
@@ -411,6 +418,9 @@ public class TeleOpMain extends LinearOpMode {
         while (opModeIsActive() && !isStopRequested()) {
             idle();
         }
+        //NU CRED ca e nevoie de thread uri neavand while uri in cod
+        //nu exista multi threading din cauza limitarilor soft/hard din control hub asa ca futi putin robotu pt acel
+        //multi threading
     }
 
     int[] slots = new int[3];
@@ -431,6 +441,7 @@ public class TeleOpMain extends LinearOpMode {
         slots[2] = 0;
         slotIndex = 0;
     }
+    //TODO de bagat toate telemetria aici
     private void UpdateTelemetry() {
 
         telemetry.update();

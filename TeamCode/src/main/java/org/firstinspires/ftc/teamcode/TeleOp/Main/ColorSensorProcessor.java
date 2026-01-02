@@ -1,26 +1,18 @@
 package org.firstinspires.ftc.teamcode.TeleOp.Main;
 
 import com.qualcomm.robotcore.hardware.ColorSensor;
-import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.external.Telemetry;
 
-public class ColorSystem {
-
+public class ColorSensorProcessor {
     //variabile colorate 😉
+    //TODO//sa fie folosite corect
     int[] last5 = new int[5];
     int index = 0;
     ColorSensor colorsensor;
 
-    int[] slots = new int[3];
-    int slotIndex = 0;
-
-    LinearOpMode opMode;
-
-    public ColorSystem(LinearOpMode opMode) {
-        this.opMode = opMode;
-    }
-
-    public void InitColorSensor() {
-        colorsensor = opMode.hardwareMap.colorSensor.get("colorsensor");
+    public ColorSensorProcessor(HardwareMap hardwareMap) {
+        colorsensor = hardwareMap.colorSensor.get("colorsensor");
     }
 
     private double getHue(int r, int g, int b) {
@@ -37,7 +29,7 @@ public class ColorSystem {
         return h;
     }
 
-    private int processColorSensor() {
+    public int processColorSensor() {
         int r = colorsensor.red();
         int g = colorsensor.green();
         int b = colorsensor.blue();
@@ -46,6 +38,7 @@ public class ColorSystem {
         double h = getHue(r, g, b);
 
         int detected;
+        //nebunia mea si alu fane
         if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
         else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
         else if (h > 135 && h < 160) detected = 1;
@@ -55,10 +48,9 @@ public class ColorSystem {
         last5[index] = detected;
         index = (index + 1) % 5;
 
-        int count0 = 0, count1 = 0, count2 = 0;
+        int  count1 = 0, count2 = 0;
         for (int v : last5) {
-            if (v == 0) count0++;
-            else if (v == 1) count1++;
+            if (v == 1) count1++;
             else if (v == 2) count2++;
         }
 
@@ -69,17 +61,9 @@ public class ColorSystem {
         return finalColor;
     }
 
-    private int[] updateColorVector() {
-        int color = processColorSensor();
-        slots[slotIndex] = color;
-        slotIndex = (slotIndex + 1) % 3;
-        return slots;
-    }
-
-    private void resetSlots() {
-        slots[0] = 0;
-        slots[1] = 0;
-        slots[2] = 0;
-        slotIndex = 0;
+    public void updateTelemetry(Telemetry telemetry) {
+        int finalColor = processColorSensor();
+        telemetry.addData("Final Color", finalColor);
+        telemetry.update();
     }
 }

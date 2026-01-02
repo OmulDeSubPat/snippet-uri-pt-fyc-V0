@@ -1,50 +1,39 @@
 package org.firstinspires.ftc.teamcode.TeleOp.Main;
 
-import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-@TeleOp(name="TeleOpMainPeClase")
+@TeleOp(name="TeleOpServosAndPivoter")
 public class TeleOpMain extends LinearOpMode {
 
-    Robot robot;
+    private DriveTrain driveTrain;
+    private TurretAiming turretAiming;
+    private IntakeOuttakeSystem intakeSystem;
+    private ColorSensorProcessor colorProcessor;
 
     @Override
     public void runOpMode() {
-
-        robot = new Robot(this);
-
-        robot.drive.InitWheels();
-        robot.poses.DcInit();
-        robot.poses.servoInit();
-        robot.turret.init();
-        robot.vision.limeInit();
+        driveTrain = new DriveTrain(hardwareMap, gamepad1);
+        turretAiming = new TurretAiming(hardwareMap, this);
+        intakeSystem = new IntakeOuttakeSystem(hardwareMap, gamepad2);
+        colorProcessor = new ColorSensorProcessor(hardwareMap);
 
         waitForStart();
 
-        robot.turret.lastTime = System.nanoTime();
-
-        Thread chassisThread = new Thread(() -> {
-            while (opModeIsActive() && !isStopRequested()) {
-                robot.drive.SetWheelsPower();
-                Thread.yield();
-            }
-        });
-
+        Thread wheelThread = new Thread(driveTrain::runDrive);
         Thread systemsThread = new Thread(() -> {
             while (opModeIsActive() && !isStopRequested()) {
-                robot.poses.pozitii();
-                robot.vision.aliniereTureta();
-                Thread.yield();
+                intakeSystem.update();
+                //colorProcessor.updateTelemetry(telemetry);
             }
         });
+        Thread aimThread = new Thread(turretAiming::runAiming);
 
-        chassisThread.start();
+        wheelThread.start();
         systemsThread.start();
+        aimThread.start();
 
         while (opModeIsActive() && !isStopRequested()) {
-            telemetry.addData("Turret Angle",
-                    robot.turret.MotorTureta.getCurrentPosition() * robot.turret.DEG_PER_TICK);
-            telemetry.update();
             idle();
         }
     }

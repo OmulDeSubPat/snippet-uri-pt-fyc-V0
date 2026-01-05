@@ -3,7 +3,7 @@ package org.firstinspires.ftc.teamcode.TeleOp.Main;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
-@TeleOp(name="TeleOpServosAndPivoter")
+@TeleOp(name="TeleOPCuClase")
 public class TeleOpMain extends LinearOpMode {
 
     private DriveTrain driveTrain;

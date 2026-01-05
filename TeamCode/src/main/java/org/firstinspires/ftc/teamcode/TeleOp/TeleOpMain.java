@@ -18,8 +18,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
-
-@TeleOp(name="TeleOpServosAndPivoter")
+//TODO sa adaug toata logica din spinner
+@TeleOp(name="TeleOpMainFaraClase")
 public class TeleOpMain extends LinearOpMode {
 
     //Motor sasiu
@@ -35,7 +35,7 @@ public class TeleOpMain extends LinearOpMode {
     //nici macar nu stiu daca mai exista
     DcMotor matura;//intake ul activ, (ala pasiv unde e? ~tibichi)
     DcMotor flywheel;//cel care lanseaza mingea
-    DcMotor spinner;//cel care roteste mingile in rezervor
+    DcMotorEx spinner;//cel care roteste mingile in rezervor
     DcMotorEx MotorTureta;//cel care misca tureta
 
     //Constante PID pt Tureta doar
@@ -78,7 +78,9 @@ public class TeleOpMain extends LinearOpMode {
     //TODO//sa fie folosite corect
     int[] last5 = new int[5];
     int index = 0;
-    ColorSensor colorsensor;
+    ColorSensor colorsensorSLot1;
+    ColorSensor colorsensorSLot2;
+    ColorSensor colorsensorSLot3;
 
     // Variabile Misc/Vision
     Limelight3A limelight;
@@ -101,7 +103,9 @@ public class TeleOpMain extends LinearOpMode {
     }
     //TODO// sa l folsoesc))
     public void InitColorSensor() {
-        colorsensor = hardwareMap.colorSensor.get("colorsensor");
+        colorsensorSLot1 = hardwareMap.colorSensor.get("ColorSensor colorsensorSLot1;");
+        colorsensorSLot2 = hardwareMap.colorSensor.get("ColorSensor colorsensorSLot2;");
+        colorsensorSLot3 = hardwareMap.colorSensor.get("ColorSensor colorsensorSLot3;");
     }
     private void SetWheelsPower() {
         double left_x  = gamepad1.left_stick_x;
@@ -153,7 +157,7 @@ public class TeleOpMain extends LinearOpMode {
         flywheel = hardwareMap.dcMotor.get("flywheel");
         flywheel.setPower(0.3);//pentru a nu avea un cold start TODO de tunat empiric
 
-        spinner = hardwareMap.dcMotor.get("spinner");
+        spinner = (DcMotorEx) hardwareMap.dcMotor.get("spinner");
         spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spinner.setTargetPosition(0);
         spinner.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -206,7 +210,7 @@ public class TeleOpMain extends LinearOpMode {
         if (gamepad2.circleWasPressed())
         {
             matura.setPower(1);
-            flywheel.setPower(0.3);
+            flywheel.setPower(0.3);//pentru a nu avea cold start in outtake
         }
 
         //outtake
@@ -340,11 +344,11 @@ public class TeleOpMain extends LinearOpMode {
         if (h < 0) h += 360.0;
         return h;
     }
-    private int processColorSensor() {
-        int r = colorsensor.red();
-        int g = colorsensor.green();
-        int b = colorsensor.blue();
-        int alpha = colorsensor.alpha();
+    private int processColorSensor(ColorSensor colorSensor) {
+        int r = colorSensor.red();
+        int g = colorSensor.green();
+        int b = colorSensor.blue();
+        int alpha = colorSensor.alpha();
 
         double h = getHue(r, g, b);
 
@@ -395,25 +399,25 @@ public class TeleOpMain extends LinearOpMode {
         Thread wheelThread = new Thread(() -> {
             while (opModeIsActive() && !isStopRequested()) {
                 SetWheelsPower();
+                aliniereTureta();
+                pozitii();
+                UpdateTelemetry();
             }
         });
 
-        Thread systemsThread = new Thread(() -> {
+        /*Thread systemsThread = new Thread(() -> {
             while (opModeIsActive() && !isStopRequested()) {
-                pozitii();
-                UpdateTelemetry();
 
             }
         });
 
         Thread AimThread = new Thread(() ->{
             while(opModeIsActive() && !isStopRequested())
-                aliniereTureta();
-        });
+        });*/
 
         wheelThread.start();
-        systemsThread.start();
-        AimThread.start();
+        //systemsThread.start();
+        //AimThread.start();
 
         while (opModeIsActive() && !isStopRequested()) {
             idle();
@@ -423,24 +427,6 @@ public class TeleOpMain extends LinearOpMode {
         //multi threading
     }
 
-    int[] slots = new int[3];
-    int slotIndex = 0;
-
-    private int[] updateColorVector() {
-        int color = processColorSensor();
-
-        slots[slotIndex] = color;
-        slotIndex = (slotIndex + 1) % 3;
-
-        return slots;
-    }
-
-    private void resetSlots() {
-        slots[0] = 0;
-        slots[1] = 0;
-        slots[2] = 0;
-        slotIndex = 0;
-    }
     //TODO de bagat toate telemetria aici
     private void UpdateTelemetry() {
 

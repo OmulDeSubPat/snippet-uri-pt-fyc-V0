@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.TeleOp.Main;
 
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.HardwareMap;
-import com.qualcomm.robotcore.external.Telemetry;
 
 public class ColorSensorProcessor {
     //variabile colorate 😉
@@ -61,9 +60,9 @@ public class ColorSensorProcessor {
         return finalColor;
     }
 
-    public void updateTelemetry(Telemetry telemetry) {
+   /* public void updateTelemetry(Telemetry telemetry) {
         int finalColor = processColorSensor();
         telemetry.addData("Final Color", finalColor);
         telemetry.update();
-    }
+    }*/
 }

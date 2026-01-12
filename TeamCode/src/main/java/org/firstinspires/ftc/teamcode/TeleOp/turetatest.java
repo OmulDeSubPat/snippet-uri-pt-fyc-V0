@@ -39,7 +39,7 @@ public class turetatest extends LinearOpMode {
     // cautarea mai extinsa iar cautarea locala cea cu un range mai mic
     //pt prosti o trebuit sa scriu asta
     // scanning vars (keep your existing ones)
-    double scanSpeed = 0.05;
+    double scanSpeed = 0.005;
     boolean scanDir = true;
     double lastTx = 0;
     double txDeadzone = 3.5;

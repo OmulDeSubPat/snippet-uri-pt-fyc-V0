@@ -333,10 +333,13 @@ public class spinner extends LinearOpMode {
             }
 
             // Update colors
-            if (!sortingActive && !spinnerIsFull()) {
+            boolean atTarget = Math.abs(targetTicks - spinner.getCurrentPosition()) < 10;
+
+            if (!sortingActive && !spinnerIsFull() && atTarget) {
                 updateAllSlots();
                 colorDrivenSpinnerLogic();
             }
+
 
             updateTelemetry();
             SetWheelsPower();

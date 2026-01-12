@@ -80,7 +80,7 @@ public class spinner extends LinearOpMode {
         return Math.round((float) spinner.getCurrentPosition() / stepTicks);
     }
 
-    private void updateSpinnerMemoryFromEncoder() {
+   /* private void updateSpinnerMemoryFromEncoder() {
         int currentStep = getSpinnerStep();
         int delta = currentStep - lastSpinnerStep;
 
@@ -100,7 +100,7 @@ public class spinner extends LinearOpMode {
 
         lastSpinnerStep = currentStep;
     }
-
+*/
     private void SetWheelsPower() {
         double left_x = gamepad1.left_stick_x;
         double left_y = -gamepad1.left_stick_y; // forward is negative
@@ -184,6 +184,7 @@ public class spinner extends LinearOpMode {
         return finalColor;
     }
 
+    //updateAllSlots face update first slot
     private void updateAllSlots() {
         slots[0] = processSingleSensor(colorsensorSLot1, last5Sensor1, indexSensor1);
         indexSensor1 = (indexSensor1 + 1) % 5;
@@ -197,12 +198,12 @@ public class spinner extends LinearOpMode {
 
     private void colorDrivenSpinnerLogic() {
         boolean newColorDetected = false;
-        if (slots[0] != 0 && slots[0] != lastStableColorSensor1) {
+        if (slots[0] != 0 && (slots[0] != lastStableColorSensor1)) {
             newColorDetected = true;
             lastStableColorSensor1 = slots[0];
         }
 
-        if (newColorDetected && !spinner.isBusy() && !colorPending) {
+        if (newColorDetected && !colorPending) {
             colorStartTime = System.currentTimeMillis();
             colorPending = true;
         }
@@ -210,7 +211,13 @@ public class spinner extends LinearOpMode {
         if (colorPending && System.currentTimeMillis() - colorStartTime >= 50) {
             targetTicks += (int) (120 * TICKS_PER_DEGREE);
             colorPending = false;
+
+            slots = rotateRight(slots);
+
+            // IMPORTANT: allow same-color next piece to trigger
+            lastStableColorSensor1 = 0;
         }
+
     }
 
     private int[] rotateRight(int[] a) {
@@ -316,10 +323,13 @@ public class spinner extends LinearOpMode {
             if (gamepad1.dpadRightWasPressed()) {
                 targetTicks += (int) (120 * TICKS_PER_DEGREE);
                 slots = rotateRight(slots);
+                lastStableColorSensor1 = 0;
             }
+
             if (gamepad1.dpadLeftWasPressed()) {
                 targetTicks -= (int) (120 * TICKS_PER_DEGREE);
                 slots = rotateLeft(slots);
+                lastStableColorSensor1 = 0;
             }
 
             // Update colors
@@ -331,9 +341,12 @@ public class spinner extends LinearOpMode {
             updateTelemetry();
             SetWheelsPower();
             Sort();
-            updateSpinnerMemoryFromEncoder();
+            //updateSpinnerMemoryFromEncoder();
 
             idle();
+
+
+
         }
     }
 }

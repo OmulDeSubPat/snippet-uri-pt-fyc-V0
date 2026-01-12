@@ -10,7 +10,7 @@ public class dc extends LinearOpMode {
     ColorSensor colorsensor;
 
     private void InitColorSensor() {
-        colorsensor = hardwareMap.colorSensor.get("colorsensor");
+        colorsensor = hardwareMap.colorSensor.get("Color1");
     }
 
     private double getHue(int r, int g, int b) {
@@ -43,10 +43,17 @@ public class dc extends LinearOpMode {
         double h = getHue(r, g, b);
 
 
-        if (alpha<100 && (h==150 || h==144)){return "Negru";}
+        if (alpha<100 && (h==150 || h==144) ){
+            return "Negru";
+        }
         else if ((h > 215) || (alpha<100 && (h==160 || h==180))) {
             return "Magenta";
-        } else if (h > 135 && h < 160) {
+        }
+        else if((h==140 || h==145) &&  alpha==43) {
+            return "Negru";
+        }
+
+        else if (h > 135 && h < 160 && alpha>60) {
             return "Green";
         }
         else if ((h==210 || h==220 || h==225 || h==200) && alpha<100)//210 220 225 200

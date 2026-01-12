@@ -24,7 +24,9 @@ public class spinner extends LinearOpMode {
 
     // Spinner slots
     int[] slots = new int[3];
+    int[] slots2 = new int[4];
     int[] totem = {1, 2, 1};
+    int i=0;
 
     // Color tracking
     int lastStableColorSensor1 = 0;
@@ -155,10 +157,10 @@ public class spinner extends LinearOpMode {
         double h = getHue(r, g, b);
         int detected;
 
-        if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
-        else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
-        else if (h > 135 && h < 160) detected = 1;
-        else if ((h == 210 || h == 220 || h == 225 || h == 200) && alpha < 100) detected = 2;
+        if (alpha<100 && (h==150 || h==144) ) detected = 0;
+        else if ((h > 215) || (alpha<100 && (h==160 || h==180))) detected = 2;
+        else if (h > 135 && h < 160 && alpha>60) detected = 1;
+        else if ((h==210 || h==220 || h==225 || h==200) && alpha<100) detected = 2;
         else detected = 0;
 
         return detected;
@@ -184,6 +186,7 @@ public class spinner extends LinearOpMode {
         return finalColor;
     }
 
+
     private void updateAllSlots() {
         slots[0] = processSingleSensor(colorsensorSLot1, last5Sensor1, indexSensor1);
         indexSensor1 = (indexSensor1 + 1) % 5;
@@ -194,6 +197,28 @@ public class spinner extends LinearOpMode {
     private boolean spinnerIsFull() {
         return slots[0] != 0 && slots[1] != 0 && slots[2] != 0;
     }
+
+    /* if (alpha<100 && (h==150 || h==144) ){
+        return "Negru";
+    }
+        else if ((h > 215) || (alpha<100 && (h==160 || h==180))) {
+        return "Magenta";
+    }
+        else if((h==140 || h==145) &&  alpha==43) {
+        return "Negru";
+    }
+
+        else if (h > 135 && h < 160 && alpha>60) {
+        return "Green";
+    }
+        else if ((h==210 || h==220 || h==225 || h==200) && alpha<100)//210 220 225 200
+            return "magenta gaura";
+        else
+    {
+        return "Negru";
+    }
+}
+ */
 
     private void colorDrivenSpinnerLogic() {
         boolean newColorDetected = false;
@@ -207,10 +232,17 @@ public class spinner extends LinearOpMode {
             colorPending = true;
         }
 
-        if (colorPending && System.currentTimeMillis() - colorStartTime >= 50) {
-            targetTicks += (int) (120 * TICKS_PER_DEGREE);
+        if (colorPending && System.currentTimeMillis() - colorStartTime >= 10) {
+            targetTicks += (int) (30 * TICKS_PER_DEGREE);
             colorPending = false;
+            slots[0]=slots2[i];
+            if (i==0)i=1;
+            else if (i==1)i=2;
+            slots[0]=0;
+            lastStableColorSensor1 = 0; // astfel al doilea verde va fi detectat din nou
+
         }
+
     }
 
     private int[] rotateRight(int[] a) {
@@ -264,9 +296,9 @@ public class spinner extends LinearOpMode {
     }
 
     private void updateTelemetry() {
-        telemetry.addData("Slot 1", slots[0]);
-        telemetry.addData("Slot 2", slots[1]);
-        telemetry.addData("Slot 3", slots[2]);
+        telemetry.addData("Slot 1", slots2[1]);
+        telemetry.addData("Slot 2", slots2[2]);
+        telemetry.addData("Slot 3", slots2[3]);
         telemetry.addData("Pregatit de lansare", spinnerBusy);
         telemetry.addData("TargetTicks", targetTicks);
         telemetry.addData("SpinnerPos", spinner.getCurrentPosition());
@@ -300,8 +332,10 @@ public class spinner extends LinearOpMode {
 
             // Intake control
             if (gamepad1.dpadDownWasPressed()) intake.setPower(-1);
-            if (gamepad1.psWasPressed()) intake.setPower(0);
-
+            if (gamepad1.psWasPressed()) {
+                intake.setPower(0);
+                i=0;
+            }
             // PID for spinner
             double currentPos = spinner.getCurrentPosition();
             double error = targetTicks - currentPos;
@@ -309,17 +343,20 @@ public class spinner extends LinearOpMode {
             double derivative = error - lastError;
             lastError = error;
             double pidOutput = error * P + integralSum * I + derivative * D;
-            pidOutput = Math.max(-0.5, Math.min(0.5, pidOutput));
+            pidOutput = Math.max(-0.8, Math.min(0.8, pidOutput));
             spinner.setPower(pidOutput);
 
             // Manual spinner control
             if (gamepad1.dpadRightWasPressed()) {
                 targetTicks += (int) (120 * TICKS_PER_DEGREE);
                 slots = rotateRight(slots);
+
             }
+
             if (gamepad1.dpadLeftWasPressed()) {
                 targetTicks -= (int) (120 * TICKS_PER_DEGREE);
                 slots = rotateLeft(slots);
+
             }
 
             // Update colors
@@ -334,6 +371,9 @@ public class spinner extends LinearOpMode {
             updateSpinnerMemoryFromEncoder();
 
             idle();
+
+
+
         }
     }
 }

@@ -48,7 +48,7 @@ public class TestAlgoritmVector extends LinearOpMode {
     }
 
     private void InitColorSensor() {
-        colorsensor = hardwareMap.colorSensor.get("colorsensor");
+        colorsensor = hardwareMap.colorSensor.get("Color1");
     }
 
     private double getHue(int r, int g, int b) {

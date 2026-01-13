@@ -26,7 +26,7 @@ public class spinner extends LinearOpMode {
     int[] slots = new int[3];
     int[] slots2 = new int[4];
     int[] totem = {1, 2, 1};
-    int i=0;
+    int i=1;
 
     // Color tracking
     int lastStableColorSensor1 = 0;
@@ -64,6 +64,13 @@ public class spinner extends LinearOpMode {
     // Color detection timing
     long colorStartTime = 0;
     boolean colorPending = false;
+    boolean spinnerMoving = false;
+    boolean detectionLocked = false;
+    boolean waitingForClear = false;
+    boolean ThirdSlot = false;
+
+
+
 
     private void InitWheels() {
         front_left = hardwareMap.dcMotor.get("lf");
@@ -195,7 +202,7 @@ public class spinner extends LinearOpMode {
     }
 
     private boolean spinnerIsFull() {
-        return slots[0] != 0 && slots[1] != 0 && slots[2] != 0;
+        return slots2[1] != 0 && slots2[2] != 0 && slots2[3] != 0;
     }
 
     /* if (alpha<100 && (h==150 || h==144) ){
@@ -221,6 +228,12 @@ public class spinner extends LinearOpMode {
  */
 
     private void colorDrivenSpinnerLogic() {
+        // Block NEW detections only
+        if (!colorPending && (spinnerMoving || detectionLocked  ))
+            return;
+        if (waitingForClear) return;
+
+
         boolean newColorDetected = false;
         if (slots[0] != 0 && slots[0] != lastStableColorSensor1) {
             newColorDetected = true;
@@ -233,15 +246,19 @@ public class spinner extends LinearOpMode {
         }
 
         if (colorPending && System.currentTimeMillis() - colorStartTime >= 10) {
-            targetTicks += (int) (30 * TICKS_PER_DEGREE);
+            targetTicks += (int) (120 * TICKS_PER_DEGREE);
+            spinnerMoving = true;
+            detectionLocked = true;
             colorPending = false;
-            slots[0]=slots2[i];
-            if (i==0)i=1;
-            else if (i==1)i=2;
-            slots[0]=0;
-            lastStableColorSensor1 = 0; // astfel al doilea verde va fi detectat din nou
 
+            slots2[i] = slots[0];
+            if (i <= 2) i++;
+
+            slots[0] = 0;
+            waitingForClear = true;   // 🔒 SAME BALL MUST CLEAR
         }
+
+
 
     }
 
@@ -330,50 +347,66 @@ public class spinner extends LinearOpMode {
 
         while (opModeIsActive()) {
 
-            // Intake control
-            if (gamepad1.dpadDownWasPressed()) intake.setPower(-1);
+            // ---------------------------
+            // CONTROL INTAKE
+            // ---------------------------
+            if (gamepad1.dpadDownWasPressed()) {
+                intake.setPower(-1);
+            }
             if (gamepad1.psWasPressed()) {
                 intake.setPower(0);
-                i=0;
+                i = 0; // resetează indexul pentru slots2
             }
-            // PID for spinner
+
+            // ---------------------------
+            // CONTROL MANUAL SPINNER
+            // ---------------------------
+            if (gamepad1.dpadRightWasPressed()) {
+                targetTicks += (int) (120 * TICKS_PER_DEGREE);
+                slots = rotateRight(slots2);
+            }
+
+            if (gamepad1.dpadLeftWasPressed()) {
+                targetTicks -= (int) (120 * TICKS_PER_DEGREE);
+                slots = rotateLeft(slots2);
+            }
+
             double currentPos = spinner.getCurrentPosition();
             double error = targetTicks - currentPos;
             integralSum += error;
             double derivative = error - lastError;
             lastError = error;
             double pidOutput = error * P + integralSum * I + derivative * D;
-            pidOutput = Math.max(-0.8, Math.min(0.8, pidOutput));
+            pidOutput = Math.max(-0.5, Math.min(0.5, pidOutput));
             spinner.setPower(pidOutput);
 
-            // Manual spinner control
-            if (gamepad1.dpadRightWasPressed()) {
-                targetTicks += (int) (120 * TICKS_PER_DEGREE);
-                slots = rotateRight(slots);
-
+            if (Math.abs(error) < 20) {
+                spinnerMoving = false;
+                detectionLocked = false;   // 🔓 UNLOCK HERE
+                lastStableColorSensor1 = 0;
             }
 
-            if (gamepad1.dpadLeftWasPressed()) {
-                targetTicks -= (int) (120 * TICKS_PER_DEGREE);
-                slots = rotateLeft(slots);
 
-            }
 
-            // Update colors
-            if (!sortingActive && !spinnerIsFull()) {
+            if (!spinnerIsFull() && !spinnerMoving)
+            {
                 updateAllSlots();
+                if (waitingForClear && slots[0] == 0) {
+                    waitingForClear = false;
+                    lastStableColorSensor1 = 0; // re-arm only after clear
+                }
+
                 colorDrivenSpinnerLogic();
             }
 
+
             updateTelemetry();
             SetWheelsPower();
-            Sort();
-            updateSpinnerMemoryFromEncoder();
+            //Sort();
+           // updateSpinnerMemoryFromEncoder();
 
             idle();
-
-
-
         }
+
     }
 }

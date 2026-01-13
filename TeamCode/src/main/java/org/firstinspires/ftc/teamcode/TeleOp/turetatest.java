@@ -22,8 +22,8 @@ public class turetatest extends LinearOpMode {
     double TimpCautareLocala=6;
 
     //variabile cautare locala(stanga-dreapta)
-    double PutereScanareLocala=0.12;    //TO BE DETERMINED(empiric)
-    double PerioadaSchimbariiSensului=0.4;  //TO BE DETERMINED(empiric)
+    double PutereScanareLocala=0.18;    //TO BE DETERMINED(empiric)
+    double PerioadaSchimbariiSensului=1;  //TO BE DETERMINED(empiric)
     DcMotorEx MotorTureta;
     Limelight3A limelight;
     IMU imu;
@@ -39,7 +39,7 @@ public class turetatest extends LinearOpMode {
     // cautarea mai extinsa iar cautarea locala cea cu un range mai mic
     //pt prosti o trebuit sa scriu asta
     // scanning vars (keep your existing ones)
-    double scanSpeed = 0.005;
+    double scanSpeed = 0.05;
     boolean scanDir = true;
     double lastTx = 0;
     double txDeadzone = 3.5;
@@ -63,14 +63,14 @@ public class turetatest extends LinearOpMode {
         );
         imu.initialize(new IMU.Parameters(orientation));
 
-        MotorTureta = hardwareMap.get(DcMotorEx.class, "turret");
+        MotorTureta = hardwareMap.get(DcMotorEx.class, "tureta");
         MotorTureta.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         MotorTureta.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         MotorTureta.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
         MotorTureta.setPower(0);
 
-        DcMotorEx flywheel;
-        flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
+        //DcMotorEx flywheel;
+        //flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
 
         boolean AimOn=false; //state ul in care este tureta:fals daca nu cauta, true daca da
 
@@ -81,17 +81,17 @@ public class turetatest extends LinearOpMode {
         while (opModeIsActive()) {
             SetWheelsPower();
             runAiming();
-            if(gamepad1.dpadDownWasPressed()){
+            if(gamepad1.dpad_down){
                 if(!AimOn){
                     runAiming();
                     AimOn=true;
                 }
-                else{
+                else if (gamepad1.ps){
                     AimOn=false;
                 }
             }
             if(gamepad1.circleWasPressed()){
-                flywheel.setPower(1);
+               // flywheel.setPower(1);
                 //adaugare ejector
             }
             telemetry.update();

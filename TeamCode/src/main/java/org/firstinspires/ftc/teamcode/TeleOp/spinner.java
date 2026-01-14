@@ -1,13 +1,20 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
+import com.qualcomm.hardware.limelightvision.LLResult;
+import com.qualcomm.hardware.limelightvision.Limelight3A;
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+import com.qualcomm.robotcore.util.Range;
+
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
 
 import java.util.Arrays;
 
@@ -44,12 +51,13 @@ public class spinner extends LinearOpMode {
     // ColorSensor colorsensorSLot3;
     DcMotorEx spinner;
     DcMotor intake;
-    DcMotor tureta;
+    DcMotorEx tureta;
     Servo ejector;
     DcMotor front_left;
     DcMotor front_right;
     DcMotor back_left;
     DcMotor back_right;
+    DcMotor flywheel;
 
     // Spinner PID
     static final double TICKS_PER_REV = 384.5;
@@ -68,6 +76,32 @@ public class spinner extends LinearOpMode {
     boolean detectionLocked = false;
     boolean waitingForClear = false;
     boolean ThirdSlot = false;
+    long UltimaDataVazut=0;
+    long TimpDeLaPierdereaTargetului=0;
+    double TimpPauza=0.3;
+    double TimpCautareLocala=6;
+
+    //variabile cautare locala(stanga-dreapta)
+    double PutereScanareLocala=0.18;    //TO BE DETERMINED(empiric)
+    double PerioadaSchimbariiSensului=1;  //TO BE DETERMINED(empiric)
+    Limelight3A limelight;
+    IMU imu;
+    double kP = 0.002, kI = 0.0001, kD = 0.0006;//pid tureta
+    double integral = 0, lastErrorT = 0;
+    long lastTime = 0;
+
+    boolean ConditieScanarePlanetara =false;//cautare planeta inseamna
+    // cautarea mai extinsa iar cautarea locala cea cu un range mai mic
+    //pt prosti o trebuit sa scriu asta
+    // scanning vars (keep your existing ones)
+    double scanSpeed = 0.05;
+    boolean scanDir = true;
+    double lastTx = 0;
+    double txDeadzone = 3.5;
+
+    double LEFT_LIMIT = -100, RIGHT_LIMIT = 100;
+    double DEG_PER_TICK = 360.0 / 560.0;
+    boolean aVazutVreodataTarget = false;
 
 
 
@@ -257,8 +291,87 @@ public class spinner extends LinearOpMode {
     }
 
 
+    public void runAiming() {
 
-    private String arrayToString(int[] a) {
+        YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
+        limelight.updateRobotOrientation(ypr.getYaw());
+
+        LLResult result = limelight.getLatestResult();
+        double tx = 0;
+
+        long OraActuala = System.nanoTime();
+
+        double dt = (OraActuala - lastTime) / 1e9;
+        lastTime = OraActuala;
+        if (dt <= 0) return;
+
+        //cand targetul este in raza de actiune
+        if (result != null && result.isValid()) {
+            aVazutVreodataTarget = true;
+            tx = -result.getTx();
+            lastTx = tx;
+            UltimaDataVazut = OraActuala;
+            TimpDeLaPierdereaTargetului = 0;
+
+            // Deadzone
+            if (Math.abs(tx) <= txDeadzone) {
+                tureta.setPower(0);
+                integral = 0;
+                lastError = 0;
+                ConditieScanarePlanetara = false;
+                return;
+            }
+
+            // PID
+            double error = -tx;
+            integral += error * dt;
+            double derivative = (error - lastError) / dt;
+            lastError = error;
+
+            double output = kP * error + kI * integral + kD * derivative;
+            output = Range.clip(output, -0.5, 0.5);
+            output = Limitare(output);
+
+            tureta.setPower(output);
+            return;
+        }
+
+        //Cand tagetul incepe sa fie pierdut
+        double UltimaDataVazutSecunde = (OraActuala - UltimaDataVazut) / 1e9;
+
+        // Pauza
+        if (UltimaDataVazutSecunde <= TimpPauza) {
+            tureta.setPower(0);
+            return;
+        }
+
+        // Initializeaza timpul de cautare
+        if (TimpDeLaPierdereaTargetului == 0)
+            TimpDeLaPierdereaTargetului = OraActuala;
+
+
+
+        // Cautare planetara
+        ConditieScanarePlanetara = true;
+
+        double PutereCautare;
+
+        if (!aVazutVreodataTarget) {
+            // OSCILARE SIMPLA (stânga-dreapta)
+            double t = (OraActuala / 1e9);
+            double dir = Math.signum(Math.sin(t * 0.8)); // ~0.8 Hz
+            PutereCautare = Limitare(scanSpeed * dir);
+        } else {
+            // direcție bazată pe ultima poziție cunoscută
+            scanDir = lastTx > 0;
+            PutereCautare = Limitare(scanSpeed * (scanDir ? 1 : -1));
+        }
+
+        tureta.setPower(PutereCautare);
+}
+
+
+        private String arrayToString(int[] a) {
         return "[" + a[0] + ", " + a[1] + ", " + a[2] + "]";
     }
 
@@ -295,7 +408,14 @@ public class spinner extends LinearOpMode {
         telemetry.addLine("SORT FAILED: No matching orientation");
     }
 
+    private double Limitare(double power) {
+        double angleDeg = tureta.getCurrentPosition() * DEG_PER_TICK;
 
+        if (angleDeg >= RIGHT_LIMIT && power > 0) return 0;
+        if (angleDeg <= LEFT_LIMIT && power < 0) return 0;
+
+        return power;
+    }
 
     private void updateTelemetry() {
         telemetry.addData("Slot 1", slots2[0]);
@@ -308,9 +428,25 @@ public class spinner extends LinearOpMode {
         telemetry.update();
     }
 
+
+
+
+
     @Override
     public void runOpMode() {
         InitWheels();
+
+        limelight = hardwareMap.get(Limelight3A.class, "limelight");
+        limelight.pipelineSwitch(5);
+        limelight.start();
+
+        imu = hardwareMap.get(IMU.class, "imu");
+        RevHubOrientationOnRobot orientation = new RevHubOrientationOnRobot(
+                RevHubOrientationOnRobot.LogoFacingDirection.UP,
+                RevHubOrientationOnRobot.UsbFacingDirection.LEFT
+        );
+        imu.initialize(new IMU.Parameters(orientation));
+
 
         colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
         // colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
@@ -318,16 +454,20 @@ public class spinner extends LinearOpMode {
 
         spinner = hardwareMap.get(DcMotorEx.class, "spinner");
         intake = hardwareMap.get(DcMotor.class, "intake");
-        // ejector = hardwareMap.get(Servo.class, "ejector");
-        tureta = hardwareMap.get(DcMotor.class, "tureta");
+        ejector = hardwareMap.get(Servo.class, "ejector");
+        tureta = hardwareMap.get(DcMotorEx.class, "tureta");
+        flywheel = hardwareMap.get(DcMotor.class, "flywheel");
 
         spinner.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spinner.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        tureta.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
 
         waitForStart();
+
+        lastTime = System.nanoTime();
         pidTimer.reset();
 
         while (opModeIsActive()) {
@@ -335,20 +475,44 @@ public class spinner extends LinearOpMode {
             // ---------------------------
             // CONTROL INTAKE
             // ---------------------------
-            if (gamepad1.dpadDownWasPressed()) {
+            if (gamepad1.circle) {
                 intake.setPower(-1);
+                slots2[0] = 0;
+                slots2[1] = 0;
+                slots2[2] = 0;
             }
             if (gamepad1.psWasPressed()) {
                 intake.setPower(0);
                 i = 0; // resetează indexul pentru slots2
             }
 
+            if (gamepad1.dpadUpWasReleased()) {
+                ejector.setPosition(0.285);
+            } else if (gamepad1.dpadUpWasPressed()) {
+                ejector.setPosition(0.009);
+            }
+            if (gamepad1.shareWasPressed()) {
+                flywheel.setPower(0.55);
+            }
+            if (gamepad1.shareWasPressed()) {
+                flywheel.setPower(0);
+            }
+            if (gamepad1.squareWasPressed()) {
+                targetTicks += (int) (60 * TICKS_PER_DEGREE);
+            }
+
+            if (gamepad1.rightBumperWasPressed())
+            {
+                targetTicks += (int) (30 * TICKS_PER_DEGREE);
+            }
+
+
             // ---------------------------
             // CONTROL MANUAL SPINNER
             // ---------------------------
             if (gamepad1.dpadRightWasPressed()) {
                 targetTicks += (int) (120 * TICKS_PER_DEGREE);
-               // slots = rotateRight(slots2);
+                // slots = rotateRight(slots2);
             }
 
             if (gamepad1.dpadLeftWasPressed()) {
@@ -372,9 +536,7 @@ public class spinner extends LinearOpMode {
             }
 
 
-
-            if (!spinnerIsFull() && !spinnerMoving)
-            {
+            if (!spinnerIsFull() && !spinnerMoving) {
                 updateAllSlots();
                 if (waitingForClear && slots[0] == 0) {
                     waitingForClear = false;
@@ -387,7 +549,9 @@ public class spinner extends LinearOpMode {
 
             updateTelemetry();
             SetWheelsPower();
+            runAiming();
             Sort();
+
 
             idle();
         }

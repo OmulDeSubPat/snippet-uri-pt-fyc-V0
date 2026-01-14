@@ -24,9 +24,9 @@ public class spinner extends LinearOpMode {
 
     // Spinner slots
     int[] slots = new int[3];
-    int[] slots2 = new int[4];
-    int[] totem = {1, 2, 1};
-    int i=1;
+    int[] slots2 = new int[3];
+    int[] totem = { 2, 1, 2};
+    int i=0;
 
     // Color tracking
     int lastStableColorSensor1 = 0;
@@ -89,26 +89,6 @@ public class spinner extends LinearOpMode {
         return Math.round((float) spinner.getCurrentPosition() / stepTicks);
     }
 
-    private void updateSpinnerMemoryFromEncoder() {
-        int currentStep = getSpinnerStep();
-        int delta = currentStep - lastSpinnerStep;
-
-        if (delta == 1) {
-            // moved +120° (right)
-            slots = rotateRight(slots);
-        } else if (delta == -1) {
-            // moved -120° (left)
-            slots = rotateLeft(slots);
-        }
-
-        if (delta != 0) {
-            // update the color under the sensor
-            slots[0] = processSingleSensor(colorsensorSLot1, last5Sensor1, indexSensor1);
-            indexSensor1 = (indexSensor1 + 1) % 5;
-        }
-
-        lastSpinnerStep = currentStep;
-    }
 
     private void SetWheelsPower() {
         double left_x = gamepad1.left_stick_x;
@@ -202,7 +182,7 @@ public class spinner extends LinearOpMode {
     }
 
     private boolean spinnerIsFull() {
-        return slots2[1] != 0 && slots2[2] != 0 && slots2[3] != 0;
+        return slots2[0] != 0 && slots2[1] != 0 && slots2[2] != 0;
     }
 
     /* if (alpha<100 && (h==150 || h==144) ){
@@ -244,31 +224,39 @@ public class spinner extends LinearOpMode {
             colorStartTime = System.currentTimeMillis();
             colorPending = true;
         }
-
         if (colorPending && System.currentTimeMillis() - colorStartTime >= 10) {
             targetTicks += (int) (120 * TICKS_PER_DEGREE);
             spinnerMoving = true;
             detectionLocked = true;
             colorPending = false;
 
-            slots2[i] = slots[0];
-            if (i <= 2) i++;
+            // Always store new color in front slot
+            slots2[0] = slots[0];
+
+            // Rotate to match physical spinner movement
+            rotateSlotsRight();
 
             slots[0] = 0;
             waitingForClear = true;   // 🔒 SAME BALL MUST CLEAR
         }
 
-
-
     }
 
-    private int[] rotateRight(int[] a) {
-        return new int[]{a[2], a[0], a[1]};
+    private void rotateSlotsRight() {
+        int temp = slots2[2];
+        slots2[2] = slots2[1];
+        slots2[1] = slots2[0];
+        slots2[0] = temp;
     }
 
-    private int[] rotateLeft(int[] a) {
-        return new int[]{a[1], a[2], a[0]};
+    private void rotateSlotsLeft() {
+        int temp = slots2[0];
+        slots2[0] = slots2[1];
+        slots2[1] = slots2[2];
+        slots2[2] = temp;
     }
+
+
 
     private String arrayToString(int[] a) {
         return "[" + a[0] + ", " + a[1] + ", " + a[2] + "]";
@@ -276,46 +264,43 @@ public class spinner extends LinearOpMode {
 
     private void Sort() {
         if (!gamepad1.yWasPressed()) return;
+        if (spinnerMoving) return; // don't interrupt motion
 
-        sortingActive = true;
-        sortTimer.reset();
-        int maxAttempts = 3;
+        // Already sorted
+        if (Arrays.equals(slots2, totem)) return;
 
-        for (int i = 0; i < maxAttempts; i++) {
-            while (sortTimer.milliseconds() < 10 && opModeIsActive()) idle();
-            sortTimer.reset();
+        int stepTicks = (int) (120 * TICKS_PER_DEGREE);
 
-            if (Arrays.equals(slots, totem)) {
-                sortingActive = false;
-                return;
-            }
-
-            int[] right = rotateRight(slots);
-            if (Arrays.equals(right, totem)) {
-                targetTicks += (int) (120 * TICKS_PER_DEGREE);
-                slots = right.clone();
-                continue;
-            }
-
-            int[] left = rotateLeft(slots);
-            if (Arrays.equals(left, totem)) {
-                targetTicks -= (int) (120 * TICKS_PER_DEGREE);
-                slots = left.clone();
-                continue;
-            }
-
-            // Default rotation if no match
-            targetTicks += (int) (120 * TICKS_PER_DEGREE);
-            slots = right.clone();
+        // Try rotating right
+        rotateSlotsRight();
+        if (Arrays.equals(slots2, totem)) {
+            targetTicks += stepTicks;
+            spinnerMoving = true;
+            return;
         }
+        // Undo rotation if not correct
+        rotateSlotsLeft();
 
-        sortingActive = false;
+        // Try rotating left
+        rotateSlotsLeft();
+        if (Arrays.equals(slots2, totem)) {
+            targetTicks -= stepTicks;
+            spinnerMoving = true;
+            return;
+        }
+        // Undo rotation if not correct
+        rotateSlotsRight();
+
+        // ❌ No match found
+        telemetry.addLine("SORT FAILED: No matching orientation");
     }
 
+
+
     private void updateTelemetry() {
-        telemetry.addData("Slot 1", slots2[1]);
-        telemetry.addData("Slot 2", slots2[2]);
-        telemetry.addData("Slot 3", slots2[3]);
+        telemetry.addData("Slot 1", slots2[0]);
+        telemetry.addData("Slot 2", slots2[1]);
+        telemetry.addData("Slot 3", slots2[2]);
         telemetry.addData("Pregatit de lansare", spinnerBusy);
         telemetry.addData("TargetTicks", targetTicks);
         telemetry.addData("SpinnerPos", spinner.getCurrentPosition());
@@ -363,12 +348,12 @@ public class spinner extends LinearOpMode {
             // ---------------------------
             if (gamepad1.dpadRightWasPressed()) {
                 targetTicks += (int) (120 * TICKS_PER_DEGREE);
-                slots = rotateRight(slots2);
+               // slots = rotateRight(slots2);
             }
 
             if (gamepad1.dpadLeftWasPressed()) {
                 targetTicks -= (int) (120 * TICKS_PER_DEGREE);
-                slots = rotateLeft(slots2);
+                //slots = rotateLeft(slots2);
             }
 
             double currentPos = spinner.getCurrentPosition();
@@ -402,8 +387,7 @@ public class spinner extends LinearOpMode {
 
             updateTelemetry();
             SetWheelsPower();
-            //Sort();
-           // updateSpinnerMemoryFromEncoder();
+            Sort();
 
             idle();
         }

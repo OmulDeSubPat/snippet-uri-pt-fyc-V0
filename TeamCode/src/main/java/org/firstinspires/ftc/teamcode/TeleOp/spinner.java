@@ -71,7 +71,7 @@ public class spinner extends LinearOpMode {
     // Spinner PID
     static final double TICKS_PER_REV = 384.5;
     static final double TICKS_PER_DEGREE = TICKS_PER_REV / 360.0;
-    double P = 0.046;
+    double P = 0.0101;
     double I = 0.0000;
     double D = 0.0015;
     double integralSum = 0;
@@ -116,6 +116,9 @@ public class spinner extends LinearOpMode {
     boolean intakeM=false;
     boolean flywheelOn = false;
     double flywheelInput = 1.0;   // pretend "full speed"
+    boolean finalMoveDone = false;
+    double UnghiLansat=0;
+
 
     private double logFlywheel(double x) {
         // Tunable constants
@@ -410,6 +413,47 @@ public class spinner extends LinearOpMode {
         return "[" + a[0] + ", " + a[1] + ", " + a[2] + "]";
     }
 
+    private void Lansare()
+    {
+        double DistantaPerete=DistantaRobotTarget();
+        double InaltimePerete=98.5;
+        double InaltimeTarget=119;
+        double DistantaTarget=DistantaPerete+45;
+        double InaltimeRobot=35;
+        double g=9.81; //constanta gravitationala
+
+
+        double k=(DistantaTarget*(InaltimePerete-InaltimeRobot)-DistantaPerete*(InaltimeTarget-InaltimeRobot))/(DistantaTarget*DistantaPerete*(DistantaTarget-DistantaPerete));
+        double u=(DistantaTarget*DistantaTarget*(DistantaPerete-DistantaTarget)-DistantaPerete*DistantaPerete*(InaltimeTarget-InaltimeRobot))/(DistantaTarget*DistantaPerete*(DistantaTarget-DistantaPerete));
+
+        UnghiLansat=Math.toDegrees(Math.atan(u));
+
+    }
+
+    private double DistantaRobotTarget()
+    {
+        LLResult result = limelight.getLatestResult();
+        double ty=result.getTy();
+
+        // how many degrees back is your limelight rotated from perfectly vertical?
+        double limelightMountAngleDegrees = 25.0;
+
+        // distance from the center of the Limelight lens to the floor
+        double limelightLensHeightCM = 31.5;
+
+        // distance from the target to the floor
+        double goalHeightCM = 85;
+
+        double angleToGoalDegrees = limelightMountAngleDegrees + ty;
+        double angleToGoalRadians = angleToGoalDegrees * (3.14159 / 180.0);
+
+        //calculate distance
+        double DistantaRobot = (goalHeightCM - limelightLensHeightCM) / Math.tan(angleToGoalRadians);
+
+
+        return DistantaRobot;
+    }
+
     private void Sort() {
       //  if (!gamepad1.yWasPressed()) return;
         if (spinnerMoving) return; // don't interrupt motion
@@ -462,6 +506,7 @@ public class spinner extends LinearOpMode {
         telemetry.addData("tx",lastTx);
         telemetry.addData("kp",kP);
         telemetry.addData("kd",kD);
+        telemetry.addData("unghiLansat",UnghiLansat);
         telemetry.update();
     }
 
@@ -525,14 +570,14 @@ public class spinner extends LinearOpMode {
                 i = 0; // resetează indexul pentru slots2
             }
 
-        /*    if (gamepad1.dpadUpWasReleased()) {
+            if (gamepad1.dpadUpWasReleased()) {
                 ejector.setPosition(0.285);
             } else if (gamepad1.dpadUpWasPressed()) {
-                ejector.setPosition(0.009);
+                ejector.setPosition(0.005);
             }
             if (gamepad1.shareWasPressed()) {
                 flywheelOn = !flywheelOn;
-            }*/
+            }
 
             double flywheelPower = flywheelOn ? logFlywheel(flywheelInput) : 0;
             flywheel.setPower(flywheelPower);
@@ -560,7 +605,7 @@ public class spinner extends LinearOpMode {
                 //slots = rotateLeft(slots2);
             }*/
 
-            if (gamepad1.dpadUpWasPressed() ) {
+       /*     if (gamepad1.dpadUpWasPressed() ) {
                 kP += 0.0005;
             }
 
@@ -577,7 +622,7 @@ public class spinner extends LinearOpMode {
             // D-pad DOWN → decrease P
             if (gamepad1.dpadRightWasPressed() ) {
                 kD -= 0.0001;
-            }
+            }*/
 
 
             double currentPos = spinner.getCurrentPosition();
@@ -611,18 +656,20 @@ public class spinner extends LinearOpMode {
                     outtake = true;
                     outtakeTimer.reset();
                     sorted = false;
+                    finalMoveDone = false;
                 }
 
-                // wait 500 ms BEFORE sorting
+                // wait 1500 ms BEFORE sorting
                 if (!sorted && outtakeTimer.milliseconds() >= 1500) {
                     Sort();
                     sorted = true;
                 }
-                outtakeTimer.reset();
 
-                // wait ANOTHER 500 ms before moving spinner
-                if (sorted && outtakeTimer.milliseconds() >= 1500) {
-                    targetTicks -= (int) (30 * TICKS_PER_DEGREE);
+                // wait ANOTHER 2500 ms (total 4000 ms) before moving spinner
+                if (sorted && outtakeTimer.milliseconds() >= 4000 && !finalMoveDone) {
+                    targetTicks += (int) (40 * TICKS_PER_DEGREE); // <- increment
+                    spinnerMoving = true;
+                    finalMoveDone = true;  // <- ensure PID moves
                 }
             } else {
                 outtake = false;
@@ -631,10 +678,11 @@ public class spinner extends LinearOpMode {
             }
 
 
+
             updateTelemetry();
             SetWheelsPower();
-            runAiming();
-
+            //runAiming();
+            Lansare();
 
             idle();
         }

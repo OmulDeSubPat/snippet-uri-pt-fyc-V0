@@ -108,7 +108,8 @@ public class spinner extends LinearOpMode {
     double lastTx = 0;
     double txDeadzone = 3.5;
 
-    double LEFT_LIMIT = 180, RIGHT_LIMIT = -70;
+    double DistantaPerete=0;
+    double LEFT_LIMIT = 20, RIGHT_LIMIT = -20;
     double DEG_PER_TICK = 360.0 / 560.0;
     boolean aVazutVreodataTarget = false;
     boolean outtake=false;
@@ -415,23 +416,6 @@ public class spinner extends LinearOpMode {
 
     private void Lansare()
     {
-        double DistantaPerete=DistantaRobotTarget();
-        double InaltimePerete=98.5;
-        double InaltimeTarget=119;
-        double DistantaTarget=DistantaPerete+45;
-        double InaltimeRobot=35;
-        double g=9.81; //constanta gravitationala
-
-
-        double k=(DistantaTarget*(InaltimePerete-InaltimeRobot)-DistantaPerete*(InaltimeTarget-InaltimeRobot))/(DistantaTarget*DistantaPerete*(DistantaTarget-DistantaPerete));
-        double u=(DistantaTarget*DistantaTarget*(DistantaPerete-DistantaTarget)-DistantaPerete*DistantaPerete*(InaltimeTarget-InaltimeRobot))/(DistantaTarget*DistantaPerete*(DistantaTarget-DistantaPerete));
-
-        UnghiLansat=Math.toDegrees(Math.atan(u));
-
-    }
-
-    private double DistantaRobotTarget()
-    {
         LLResult result = limelight.getLatestResult();
         double ty=result.getTy();
 
@@ -448,11 +432,29 @@ public class spinner extends LinearOpMode {
         double angleToGoalRadians = angleToGoalDegrees * (3.14159 / 180.0);
 
         //calculate distance
-        double DistantaRobot = (goalHeightCM - limelightLensHeightCM) / Math.tan(angleToGoalRadians);
+        DistantaPerete=(goalHeightCM - limelightLensHeightCM) / Math.tan(angleToGoalRadians);
+        double InaltimePerete=98.5;
+        double InaltimeTarget=119;
+        double DistantaTarget=DistantaPerete+45;
+        double InaltimeRobot=35;
+        double g=9.81; //constanta gravitationala
 
 
-        return DistantaRobot;
+        double k=(DistantaTarget*(InaltimePerete-InaltimeRobot)-DistantaPerete*(InaltimeTarget-InaltimeRobot))/(DistantaTarget*DistantaPerete*(DistantaTarget-DistantaPerete));
+        double u=(DistantaTarget*DistantaTarget*(DistantaPerete-DistantaTarget)-DistantaPerete*DistantaPerete*(InaltimeTarget-InaltimeRobot))/(DistantaTarget*DistantaPerete*(DistantaTarget-DistantaPerete));
+
+        double UnghiLansat=Math.toDegrees(Math.atan(u));
+
+        //54grade limita inferioare de lansare din flywheel
+        //75 grade limita superioara de lansare din flywheel
+
+      //  UnghiLansat=Range.clip(UnghiLansat, 54.0, 75.0);
+
+        //double PozitieLansare=(UnghiLansat-54.0)/(75.0-54.0);
+
+       // UnghiLansare.setPosition(PozitieLansare);
     }
+
 
     private void Sort() {
       //  if (!gamepad1.yWasPressed()) return;
@@ -507,6 +509,7 @@ public class spinner extends LinearOpMode {
         telemetry.addData("kp",kP);
         telemetry.addData("kd",kD);
         telemetry.addData("unghiLansat",UnghiLansat);
+        telemetry.addData("Distanta Perete",DistantaPerete);
         telemetry.update();
     }
 
@@ -552,6 +555,7 @@ public class spinner extends LinearOpMode {
 
         lastTime = System.nanoTime();
         pidTimer.reset();
+        ejector.setPosition(0.285);
 
         while (opModeIsActive()) {
 
@@ -595,7 +599,7 @@ public class spinner extends LinearOpMode {
             // ---------------------------
             // CONTROL MANUAL SPINNER
             // ---------------------------
-       /*     if (gamepad1.dpadRightWasPressed()) {
+            if (gamepad1.dpadRightWasPressed()) {
                 targetTicks += (int) (120 * TICKS_PER_DEGREE);
                 // slots = rotateRight(slots2);
             }
@@ -603,7 +607,7 @@ public class spinner extends LinearOpMode {
             if (gamepad1.dpadLeftWasPressed()) {
                 targetTicks -= (int) (120 * TICKS_PER_DEGREE);
                 //slots = rotateLeft(slots2);
-            }*/
+            }
 
        /*     if (gamepad1.dpadUpWasPressed() ) {
                 kP += 0.0005;
@@ -667,7 +671,7 @@ public class spinner extends LinearOpMode {
 
                 // wait ANOTHER 2500 ms (total 4000 ms) before moving spinner
                 if (sorted && outtakeTimer.milliseconds() >= 4000 && !finalMoveDone) {
-                    targetTicks += (int) (40 * TICKS_PER_DEGREE); // <- increment
+                    targetTicks += (int) (60 * TICKS_PER_DEGREE); // <- increment
                     spinnerMoving = true;
                     finalMoveDone = true;  // <- ensure PID moves
                 }
@@ -681,7 +685,7 @@ public class spinner extends LinearOpMode {
 
             updateTelemetry();
             SetWheelsPower();
-            //runAiming();
+            runAiming();
             Lansare();
 
             idle();

@@ -118,6 +118,12 @@ public class spinner extends LinearOpMode {
     boolean finalMoveDone = false;
     double UnghiLansat=0;
     boolean activtureta=false;
+    int mingi=0;
+    long lastShotTime = 0;
+    double turretFreezeAfterShot = 0.6; // seconds
+    boolean ejecting = false;
+    ElapsedTime ejectTimer = new ElapsedTime();
+
 
 
     private double logFlywheel(double x) {
@@ -150,9 +156,9 @@ public class spinner extends LinearOpMode {
 
 
     private void SetWheelsPower() {
-        double left_x = gamepad2.left_stick_x;
-        double left_y = -gamepad2.left_stick_y; // forward is negative
-        double right_x = gamepad2.right_stick_x;
+        double left_x = gamepad1.left_stick_x;
+        double left_y = -gamepad1.left_stick_y; // forward is negative
+        double right_x = gamepad1.right_stick_x;
 
         double front_left_pw = left_y + left_x + right_x;
         double back_left_pw = left_y - left_x + right_x;
@@ -559,6 +565,7 @@ public class spinner extends LinearOpMode {
 
         lastTime = System.nanoTime();
         pidTimer.reset();
+        ejector.setPosition(0.285);
 
         while (opModeIsActive()) {
 
@@ -577,10 +584,11 @@ public class spinner extends LinearOpMode {
                 i = 0; // resetează indexul pentru slots2
             }
 
-            if (gamepad1.dpadUpWasReleased()) {
+            if (gamepad1.optionsWasReleased()) {
                 ejector.setPosition(0.285);
-            } else if (gamepad1.dpadUpWasPressed()) {
-                ejector.setPosition(0.005);
+            } else if (gamepad1.optionsWasPressed()) {
+                    ejector.setPosition(0.005);
+
             }
             if (gamepad1.shareWasPressed()) {
                 flywheelOn = !flywheelOn;

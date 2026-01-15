@@ -98,6 +98,8 @@ public class spinner extends LinearOpMode {
     double kP = 0.0076, kI = 0.0001, kD = 0.0005;//pid tureta
     double integral = 0, lastErrorT = 0;
     long lastTime = 0;
+    int outtakeCycles = 0;
+
 
     boolean ConditieScanarePlanetara =false;//cautare planeta inseamna
     // cautarea mai extinsa iar cautarea locala cea cu un range mai mic
@@ -123,6 +125,7 @@ public class spinner extends LinearOpMode {
     double turretFreezeAfterShot = 0.6; // seconds
     boolean ejecting = false;
     ElapsedTime ejectTimer = new ElapsedTime();
+    boolean Empty=false;
 
 
 
@@ -249,6 +252,11 @@ public class spinner extends LinearOpMode {
     private boolean spinnerIsFull() {
         return slots2[0] != 0 && slots2[1] != 0 && slots2[2] != 0;
     }
+
+    private boolean spinnerIsEmpty() {
+        return slots2[0] == 0 && slots2[1] == 0 && slots2[2] == 0;
+    }
+
 
     /* if (alpha<100 && (h==150 || h==144) ){
         return "Negru";
@@ -572,13 +580,22 @@ public class spinner extends LinearOpMode {
             // ---------------------------
             // CONTROL INTAKE
             // ---------------------------
-            if (gamepad1.circle) {
+            if (gamepad1.circleWasPressed()) {
                 intake.setPower(-1);
                 slots2[0] = 0;
                 slots2[1] = 0;
                 slots2[2] = 0;
-                intakeM=true;
+                intakeM = true;
+
+                outtakeCycles++;
+
+                // FIRST time → allow normal outtake +60
+                if (outtakeCycles > 1) {
+                    // SECOND and later → undo previous +60
+                    targetTicks -= (int) (60 * TICKS_PER_DEGREE);
+                }
             }
+
             if (gamepad1.psWasPressed()) {
                 intake.setPower(0);
                 i = 0; // resetează indexul pentru slots2
@@ -595,10 +612,11 @@ public class spinner extends LinearOpMode {
             }
 
             double flywheelPower = flywheelOn ? logFlywheel(flywheelInput) : 0;
-            flywheel.setPower(flywheelPower);
+            if (flywheelOn)flywheel.setPower(0.55);
+            else flywheel.setPower(0);
 
             if (gamepad1.squareWasPressed()) {
-                targetTicks += (int) (60 * TICKS_PER_DEGREE);
+                targetTicks -= (int) (60 * TICKS_PER_DEGREE);
             }
 
             if (gamepad1.rightBumperWasPressed())
@@ -681,16 +699,23 @@ public class spinner extends LinearOpMode {
                 }
 
                 // wait ANOTHER 2500 ms (total 4000 ms) before moving spinner
-                if (sorted && outtakeTimer.milliseconds() >= 4000 && !finalMoveDone) {
-                    targetTicks += (int) (60 * TICKS_PER_DEGREE); // <- increment
+                if (sorted
+                        && outtakeTimer.milliseconds() >= 4000
+                        && !finalMoveDone
+                        && outtakeCycles <= 1) {   // 🔒 ONLY FIRST CIRCLE
+
+                    targetTicks += (int) (60 * TICKS_PER_DEGREE);
                     spinnerMoving = true;
-                    finalMoveDone = true;  // <- ensure PID moves
+                    finalMoveDone = true;
                 }
+
             } else {
                 outtake = false;
                 sorted = false;
                 intakeM = false;
+                outtakeCycles = 0;
             }
+
 
 
 

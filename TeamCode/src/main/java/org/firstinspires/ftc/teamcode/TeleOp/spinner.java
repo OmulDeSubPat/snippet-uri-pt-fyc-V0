@@ -492,8 +492,8 @@ public class spinner extends LinearOpMode {
         double angleDeg = getSpinnerPositionCorrected() * DEG_PER_TICK;
 
         // Limite hard
-        double LEFT_LIMIT = -150;
-        double RIGHT_LIMIT = 150;
+        double LEFT_LIMIT = -125;
+        double RIGHT_LIMIT = 125;
 
         // Daca ajungi la limita -> inversezi directia
         if (angleDeg >= RIGHT_LIMIT) {

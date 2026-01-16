@@ -775,6 +775,7 @@ public class spinner extends LinearOpMode {
                 targetTicks += (int)(60 * TICKS_PER_DEGREE);
                 if (limit.isPressed()) {
                     spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+                    I=0;
                 }
             }
 

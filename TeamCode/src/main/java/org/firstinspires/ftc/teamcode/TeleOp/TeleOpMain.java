@@ -1,171 +1,116 @@
 package org.firstinspires.ftc.teamcode.TeleOp;
 
-import com.qualcomm.hardware.limelightvision.LLResult;
 import com.qualcomm.hardware.limelightvision.Limelight3A;
-
+import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-
-import com.qualcomm.hardware.rev.RevHubOrientationOnRobot;
 import com.qualcomm.robotcore.hardware.ColorSensor;
 import com.qualcomm.robotcore.hardware.DcMotor;
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.hardware.Servo;
-
-import com.qualcomm.robotcore.hardware.IMU;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.hardware.IMU;
+import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.hardware.TouchSensor;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
-import com.qualcomm.robotcore.util.Range;
-import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
-
-//TODO sa adaug toata logica din spinner
-@TeleOp(name="TeleOpMainFaraClase")
+@TeleOp(name = "aTeleOpMain")
 public class TeleOpMain extends LinearOpMode {
 
-    //Motor sasiu
+    int[] last5Sensor1 = new int[5];
+    int[] last5Sensor2 = new int[5];
+    int[] last5Sensor3 = new int[5];
+
+    int indexSensor1 = 0;
+    int indexSensor2 = 0;
+    int indexSensor3 = 0;
+
+
+    int encoderOffset=0;
+    // Spinner slots
+    int[] slots = new int[3];
+    int[] totem = { 2, 1, 2};
+
+    // Color tracking
+    int Color1 = 0;
+    int Color2 = 0;
+    int Color3 = 0;
+
+    ColorSensor colorsensorSLot1;
+    ColorSensor colorsensorSLot2;
+    ColorSensor colorsensorSLot3;
+    DcMotorEx spinner;
+    DcMotor intake;
+    DcMotorEx tureta;
+    Servo ejector;
     DcMotor front_left;
     DcMotor front_right;
     DcMotor back_left;
     DcMotor back_right;
+    DcMotor flywheel;
 
-    // Motoare unrelated de sasiu
+    // Spinner PID
+    static final double TICKS_PER_REV = 384.5;
+    double P = 0.0101;
+    double I = 0.0000;//spinner
+    double D = 0.0015;
+    double integralSum = 0;
 
-    Servo ejector ;//servo ul care baga mingile in flywheel
-    Servo ungiTuretaOy;//cea care asigura ca unghiul turetei e pe apriltag pe oy
-    //nici macar nu stiu daca mai exista
-    DcMotor matura;//intake ul activ, (ala pasiv unde e? ~tibichi)
-    DcMotor flywheel;//cel care lanseaza mingea
-    DcMotorEx spinner;//cel care roteste mingile in rezervor
-    DcMotorEx MotorTureta;//cel care misca tureta
-
-    //Constante PID pt Tureta doar
-    //TODO//sa se puna pid ul si pt spinner/rezolver
-    double kP = 0.002;
-    double kI = 0.0001;
-    double kD = 0.0006;
-    double integral = 0;
     double lastError = 0;
-    long lastTime = 0;
+    double targetTicks = 0;
 
-
-    //Variabile pentru cautare AprilTag
-    double scanSpeed = 0.05;
-    boolean scanDir = true;
-    double lastTx = 0;
-    double txDeadzone = 3.5;//TX deadzone pt oprire tureta
-    double nudgePower = 0.0; //puterea nudge ului pentru deblocarea turetei(nu cred ca o sa folosesc asa ceva~tibichi)
-
-
-    //Variabile pentru durata de cautare aka nebunia lu tibi
-    long UltimaDataVazut=0;
-    long TimpDeLaPierdereaTargetului=0;
-    double TimpPauza=0.3;
-    double TimpCautareLocala=6;
-
-    //variabile cautare locala(stanga-dreapta)
-    double PutereScanareLocala=0.12;    //TO BE DETERMINED(empiric)
-    double PerioadaSchimbariiSensului=0.4;  //TO BE DETERMINED(empiric)
-
-
-    //Limitare tureta
-    double LEFT_LIMIT = -100;
-    double RIGHT_LIMIT = 100;
-
-    double DEG_PER_TICK = 360.0 / 560.0; //Conversie grad/tick
-
-
-    //variabile colorate 😉
-    //TODO//sa fie folosite corect
-    int[] last5 = new int[5];
-    int index = 0;
-    ColorSensor colorsensorSLot1;
-    ColorSensor colorsensorSLot2;
-    ColorSensor colorsensorSLot3;
-
-    // Variabile Misc/Vision
+    boolean spinnerMoving = false;
+    boolean detectionLocked = false;
     Limelight3A limelight;
     IMU imu;
 
-    boolean ConditieScanarePlanetara =false;//cautare planeta inseamna
-    // cautarea mai extinsa iar cautarea locala cea cu un range mai mic
-    //pt prosti o trebuit sa scriu asta
+    double DEG_PER_TICK = 360.0 / 383.6;
+    boolean flywheelOn = false;
+    TouchSensor limitswitch;
+    boolean butonApasat =false;
+    boolean intakeMode=false;
+    boolean outtakeMode=false;
+    private ElapsedTime spinnerTimeout = new ElapsedTime();
+
+
 
     private void InitWheels() {
-        front_left = hardwareMap.dcMotor.get("leftFront");
-        front_right = hardwareMap.dcMotor.get("rightFront");
-        back_left = hardwareMap.dcMotor.get("leftRear");
-        back_right = hardwareMap.dcMotor.get("rightRear");
+        front_left = hardwareMap.dcMotor.get("lf");
+        front_right = hardwareMap.dcMotor.get("rf");
+        back_left = hardwareMap.dcMotor.get("lr");
+        back_right = hardwareMap.dcMotor.get("rr");
 
-        front_right.setDirection(DcMotorSimple.Direction.REVERSE);
-        back_right.setDirection(DcMotorSimple.Direction.REVERSE);
-        front_left.setDirection(DcMotorSimple.Direction.FORWARD);
-        back_left.setDirection(DcMotorSimple.Direction.FORWARD);
-    }
-    //TODO// sa l folsoesc))
-    public void InitColorSensor() {
-        colorsensorSLot1 = hardwareMap.colorSensor.get("ColorSensor colorsensorSLot1;");
-        colorsensorSLot2 = hardwareMap.colorSensor.get("ColorSensor colorsensorSLot2;");
-        colorsensorSLot3 = hardwareMap.colorSensor.get("ColorSensor colorsensorSLot3;");
-    }
-    private void SetWheelsPower() {
-        double left_x  = gamepad1.left_stick_x;
-        double left_y  = -gamepad1.left_stick_y; // forward is negative
-        double right_x = gamepad1.right_stick_x;
-
-        double front_left_pw  = left_y + left_x + right_x;
-        double back_left_pw   = left_y - left_x + right_x;
-        double front_right_pw = left_y - left_x - right_x;
-        double back_right_pw  = left_y + left_x - right_x;
-
-        double max = Math.max(Math.abs(front_left_pw),
-                Math.max(Math.abs(back_left_pw),
-                        Math.max(Math.abs(front_right_pw), Math.abs(back_right_pw))));
-
-        if (max > 1.0) {
-            front_left_pw  /= max;
-            back_left_pw   /= max;
-            front_right_pw /= max;
-            back_right_pw  /= max;
-        }
-
-        front_left.setPower(front_left_pw);
-        back_left.setPower(back_left_pw);
-        front_right.setPower(front_right_pw);
-        back_right.setPower(back_right_pw);
+        front_right.setDirection(DcMotorSimple.Direction.FORWARD);
+        back_right.setDirection(DcMotorSimple.Direction.FORWARD);
+        front_left.setDirection(DcMotorSimple.Direction.REVERSE);
+        back_left.setDirection(DcMotorSimple.Direction.REVERSE);
     }
 
-    private void servoInit() {
-        ejector = hardwareMap.servo.get("ejector");
-        ungiTuretaOy = hardwareMap.servo.get("unghituretaoy");
+    private void InitDc()
+    {
 
-    }
+        spinner = hardwareMap.get(DcMotorEx.class, "spinner");
+        intake = hardwareMap.get(DcMotor.class, "intake");
+        tureta = hardwareMap.get(DcMotorEx.class, "tureta");
+        flywheel = hardwareMap.get(DcMotor.class, "flywheel");
+        limitswitch = hardwareMap.get(TouchSensor.class, "limitswitch");
 
-    private void pozInit() {
-//nuj daca o sa existe
-    }
-
-
-    private void DcInit() {
-        MotorTureta = (DcMotorEx) hardwareMap.dcMotor.get("tureta");
-        MotorTureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        MotorTureta.setTargetPosition(0);
-        MotorTureta.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        MotorTureta.setPower(0);
-
-        matura = hardwareMap.dcMotor.get("matura");
-
-        flywheel = hardwareMap.dcMotor.get("flywheel");
-        flywheel.setPower(0.3);//pentru a nu avea un cold start TODO de tunat empiric
-
-        spinner = (DcMotorEx) hardwareMap.dcMotor.get("spinner");
+        spinner.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        spinner.setTargetPosition(0);
-        spinner.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        spinner.setPower(0);
+        spinner.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        tureta.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
     }
 
+    private void InitServo()
+    {
+        ejector = hardwareMap.get(Servo.class, "ejector");//0.285 down 0.005 up
+        ejector.setPosition(0.285);
+    }
 
-    public void limeInit() {
+    private void InitLL()
+    {
         limelight = hardwareMap.get(Limelight3A.class, "limelight");
         limelight.pipelineSwitch(5);
         limelight.start();
@@ -176,260 +121,247 @@ public class TeleOpMain extends LinearOpMode {
                 RevHubOrientationOnRobot.UsbFacingDirection.LEFT
         );
         imu.initialize(new IMU.Parameters(orientation));
-
-        MotorTureta = hardwareMap.get(DcMotorEx.class, "turret");
-        MotorTureta.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
-        MotorTureta.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
-        MotorTureta.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
-        MotorTureta.setPower(0);
     }
 
-    public double Limitare(double Putere)
+    private void InitAux()
     {
-        double UnghiTureta=MotorTureta.getCurrentPosition()*DEG_PER_TICK;
-        if (UnghiTureta >= RIGHT_LIMIT) {
-            integral = 0;
-            if (Putere > 0) {
-                // nudge = un mic "cot" in caz ca se blocheaza tureta
-                return -nudgePower;
-            }
-        }
-
-        if (UnghiTureta <= LEFT_LIMIT) {
-            integral = 0;
-            if (Putere < 0) {
-                return nudgePower;
-            }
-        }
-        return Putere;
+        colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
+        colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
+        colorsensorSLot3 = hardwareMap.colorSensor.get("Color3");
     }
 
-    public void pozitii()
-    {
-        //intake
-        if (gamepad2.circleWasPressed())
-        {
-            matura.setPower(1);
-            flywheel.setPower(0.3);//pentru a nu avea cold start in outtake
+
+    private void SetWheelsPower() {
+        double left_x = gamepad2.left_stick_x;
+        double left_y = -gamepad2.left_stick_y; // forward is negative
+        double right_x = gamepad2.right_stick_x;
+
+        double front_left_pw = left_y + left_x + right_x;
+        double back_left_pw = left_y - left_x + right_x;
+        double front_right_pw = left_y - left_x - right_x;
+        double back_right_pw = left_y + left_x - right_x;
+
+        // Normalize so no motor power exceeds 1.0
+        double max = Math.max(Math.abs(front_left_pw),
+                Math.max(Math.abs(back_left_pw),
+                        Math.max(Math.abs(front_right_pw), Math.abs(back_right_pw))));
+        if (max > 1.0) {
+            front_left_pw /= max;
+            back_left_pw /= max;
+            front_right_pw /= max;
+            back_right_pw /= max;
         }
 
-        //outtake
-        if (gamepad2.xWasPressed())
-        {
-            flywheel.setPower(1);
-            matura.setPower(0);
-            ejector.setPosition(0.555);
-            //TODO sa se miste 120 de grade spinner ul + gandit spinner autonom
-
-        }
+        front_left.setPower(front_left_pw);
+        back_left.setPower(back_left_pw);
+        front_right.setPower(front_right_pw);
+        back_right.setPower(back_right_pw);
     }
 
-    public void aliniereTureta()
-    {
-        //tibi schizo
-        lastTime = System.nanoTime();
-            YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
-            limelight.updateRobotOrientation(ypr.getYaw());
-
-            LLResult result = limelight.getLatestResult();
-            double tx=0;
-            long OraActuala=System.nanoTime(); //start timer pentru cazul in care nu mai e target
-            if (result != null && result.isValid()) {
-                tx = -result.getTx();
-                lastTx = tx;
-                UltimaDataVazut=OraActuala;
-                TimpDeLaPierdereaTargetului=0;
-            } else {
-                double UltimaDataVazutSecunde = (OraActuala - UltimaDataVazut) / 1e9;
-                if (UltimaDataVazutSecunde <= TimpPauza) {
-                    MotorTureta.setPower(0);
-                    telemetry.addData("Status", "Pauza de cautare");
-                    telemetry.addData("Vazut acum:", UltimaDataVazutSecunde);
-                    telemetry.update();
-                }
-                if (TimpDeLaPierdereaTargetului == 0)
-                    TimpDeLaPierdereaTargetului = OraActuala;
-
-
-                if (UltimaDataVazutSecunde <= TimpCautareLocala  && UltimaDataVazutSecunde >=TimpPauza) {
-                    double TimpulLocal = (OraActuala - TimpDeLaPierdereaTargetului) / 1e9; //timpul de cand a inceput cautarea locala
-                    double DirectiaInitiala;
-                    if (lastTx > 0)
-                        DirectiaInitiala = 1.0;
-                    else
-                        DirectiaInitiala = -1.0;
-
-
-                    boolean SchimbareSens;
-                    if ((int) (TimpulLocal / PerioadaSchimbariiSensului) % 2 == 0)
-                        SchimbareSens = true;
-                    else
-                        SchimbareSens = false;
-
-
-                    double Directie;
-                    if (SchimbareSens)
-                        Directie = DirectiaInitiala;
-                    else
-                        Directie = -DirectiaInitiala;
-
-
-                    double Putere = Limitare(PutereScanareLocala * -Directie);
-                    MotorTureta.setPower(Putere);
-
-                    telemetry.addData("Status", "Cautare locala");
-                    telemetry.addData("Timpul local", TimpulLocal);
-                    telemetry.addData("Ultimul tx", lastTx);
-                    telemetry.update();
-                }
-                ConditieScanarePlanetara= UltimaDataVazutSecunde > TimpCautareLocala;
-
-                if (ConditieScanarePlanetara == true)
-                    scanDir = lastTx > 0;
-                double UnghiTureta = MotorTureta.getCurrentPosition() * DEG_PER_TICK;
-                double PutereCautare=scanSpeed*(scanDir ? 1 : -1);
-                PutereCautare = Limitare(PutereCautare);
-                MotorTureta.setPower(PutereCautare);
-
-                telemetry.addData("Status:", "Cautare planetara");
-                telemetry.addData("Unghi Tureta", UnghiTureta);
-                telemetry.update();
-            }
-            // opresti cautarea daca gaseste tinta
-            if (Math.abs(tx) <= txDeadzone) {
-                MotorTureta.setPower(0);
-                integral = 0;
-                lastError = 0;
-                ConditieScanarePlanetara=false;
-
-                telemetry.addData("Aligned (TX in ±1.5)", true);
-                telemetry.addData("tx", tx);
-                telemetry.update();
-            }
-
-            // PID
-            long now = System.nanoTime();
-            double dt = (now - lastTime) / 1e9;
-            lastTime = now;
-
-            double error = -tx;
-            integral += error * dt;
-            double derivative = (error - lastError) / dt;
-            lastError = error;
-
-            double output = kP * error + kI * integral + kD * derivative;
-            output = Range.clip(output, -0.5, 0.5);
-
-            output = Limitare(output);
-
-            MotorTureta.setPower(output);
-
-            telemetry.addData("tx", tx);
-            telemetry.addData("PID Output", output);
-            telemetry.addData("Turret Angle", MotorTureta.getCurrentPosition() * DEG_PER_TICK);
-            telemetry.addData("Scanning", false);
-            telemetry.update();
-
-    }
     private double getHue(int r, int g, int b) {
         int max = Math.max(r, Math.max(g, b));
         int min = Math.min(r, Math.min(g, b));
         if (max == min) return 0.0;
+
         double chroma = max - min;
         double h;
-        if (max == r) h = (double)(g - b) / chroma;
-        else if (max == g) h = (double)(b - r) / chroma + 2.0;
-        else h = (double)(r - g) / chroma + 4.0;
+
+        if (max == r) h = (double) (g - b) / chroma;
+        else if (max == g) h = (double) (b - r) / chroma + 2.0;
+        else h = (double) (r - g) / chroma + 4.0;
+
         h *= 60.0;
         if (h < 0) h += 360.0;
+
         return h;
     }
-    private int processColorSensor(ColorSensor colorSensor) {
+
+    private void CalibrareSpinner() {
+        int ticksActual = getSpinnerPositionCorrected();
+        double pasTicks = TICKS_PER_REV / 6.0;
+        int celMaiApropiat = (int) Math.round(ticksActual / pasTicks) * (int) Math.round(pasTicks);
+        int delta = celMaiApropiat - ticksActual;
+        encoderOffset += delta;
+        targetTicks += delta;
+    }
+
+    private int smekerie(ColorSensor colorSensor) {
         int r = colorSensor.red();
         int g = colorSensor.green();
         int b = colorSensor.blue();
         int alpha = colorSensor.alpha();
-
         double h = getHue(r, g, b);
-
         int detected;
-        //nebunia mea si alu fane
-        if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
-        else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
-        else if (h > 135 && h < 160) detected = 1;
-        else if ((h == 210 || h == 220 || h == 225 || h == 200) && alpha < 100) detected = 2;
+        if (alpha<100 && (h==150 || h==144) ) detected = 0;
+        else if ((h > 215) || (alpha<100 && (h==160 || h==180))) detected = 2;
+        else if (h > 135 && h < 160 && alpha>100) detected = 1;
+        else if((h==140 || h==145) &&  alpha==43) detected = 0;
+        else if (h > 135 && h < 160 && alpha>60)detected =1;
+        else if ((h==210 || h==220 || h==225 || h==200) && alpha<100) detected=2;
         else detected = 0;
+        return detected;
+    }
 
+    private int CuloareFinala(ColorSensor sensor, int[] last5, int index) {
+        int detected = smekerie(sensor);
         last5[index] = detected;
         index = (index + 1) % 5;
-
-        int  count1 = 0, count2 = 0;
+        int count1 = 0; // green
+        int count2 = 0; // purple
         for (int v : last5) {
             if (v == 1) count1++;
             else if (v == 2) count2++;
         }
-
         int finalColor = 0;
         if (count1 >= 3 && count1 > count2) finalColor = 1;
         else if (count2 >= 3 && count2 > count1) finalColor = 2;
-
-        /*telemetry.addData("R", r);
-        telemetry.addData("G", g);
-        telemetry.addData("B", b);
-        telemetry.addData("Alpha", alpha);
-        telemetry.addData("Hue", String.format(Locale.US, "%.1f", h));
-        telemetry.addData("Detected", detected);*/
-        telemetry.addData("Final Color", finalColor);
-        telemetry.update();
-
         return finalColor;
     }
 
+
+    private void updateCulori() {
+        Color1 = CuloareFinala(colorsensorSLot1, last5Sensor1, indexSensor1);
+        indexSensor1 = (indexSensor1 + 1) % 5;
+        Color2 = CuloareFinala(colorsensorSLot2, last5Sensor2, indexSensor2);
+        indexSensor2 = (indexSensor2 + 1) % 5;
+        Color3 = CuloareFinala(colorsensorSLot3, last5Sensor3, indexSensor3);
+        indexSensor3 = (indexSensor3 + 1) % 5;
+    }
+
+    private void flywheelLogic()
+    {
+        if (gamepad1.shareWasPressed()) {
+            flywheelOn = !flywheelOn;
+            if (flywheelOn)flywheel.setPower(0.45);
+            else flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        }
+    }
+    private void servoLogic()
+    {
+        if (gamepad1.optionsWasReleased()) {
+            ejector.setPosition(0.285);
+        }
+        else if (gamepad1.optionsWasPressed()) {
+        ejector.setPosition(0.005);
+        }
+    }
+    private void pidSPinnerLogic()
+    {
+        double currentPos = getSpinnerPositionCorrected();
+        double error = targetTicks - currentPos;
+        integralSum += error;
+        double derivative = error - lastError;
+        lastError = error;
+        double pidOutput = error * P + integralSum * I + derivative * D;
+        pidOutput = Math.max(-0.5, Math.min(0.5, pidOutput));
+        if(!butonApasat)spinner.setPower(pidOutput);
+    }
+
+    private boolean spinnerFull()
+    {
+        if (Color1!=0 && Color2!=0 && Color3!=0)return true;
+        else return false;
+    }
+
+    private void colorDrivenSpinnerLogic() {
+        if (Color1!=0 && !spinnerFull())
+        {
+            spinnerTimeout.reset();
+            if (spinnerTimeout.milliseconds() >= 50) {
+                targetTicks += 120 * DEG_PER_TICK;
+            }
+        }
+    }
+/*
+    private void rotateSlotsRight() {
+        int temp = slots2[2];
+        slots2[2] = slots2[1];
+        slots2[1] = slots2[0];
+        slots2[0] = temp;
+    }
+
+    private void rotateSlotsLeft() {
+        int temp = slots2[0];
+        slots2[0] = slots2[1];
+        slots2[1] = slots2[2];
+        slots2[2] = temp;
+    }
+*/
+    private int getSpinnerPositionCorrected() {
+        return spinner.getCurrentPosition() + encoderOffset;
+    }
+
+    private void updateTelemetry() {
+        if (outtakeMode) {
+            telemetry.addData("Slot 1", slots[0]);
+            telemetry.addData("Slot 2", slots[1]);
+            telemetry.addData("Slot 3", slots[2]);
+        }
+        if (intakeMode)
+        {
+            telemetry.addData("Slot 1", Color1);
+            telemetry.addData("Slot 2", Color2);
+            telemetry.addData("Slot 3", Color3);
+        }
+        telemetry.addData("spinner unghi",getSpinnerPositionCorrected()*DEG_PER_TICK);
+        telemetry.update();
+    }
+
+    private void CalibrareEncoder()
+    {
+        if (limitswitch.isPressed()) {
+            if (!butonApasat) {
+                CalibrareSpinner();
+                butonApasat = true;
+            }
+        } else {
+            butonApasat = false;
+        }
+    }
+
+
     @Override
     public void runOpMode() {
-        servoInit();
-        DcInit();
-        pozInit();
         InitWheels();
-        limeInit();
-
+        InitAux();
+        InitDc();
+        InitLL();
+        InitServo();
 
         waitForStart();
 
-        Thread wheelThread = new Thread(() -> {
-            while (opModeIsActive() && !isStopRequested()) {
-                SetWheelsPower();
-                aliniereTureta();
-                pozitii();
-                UpdateTelemetry();
+        while (opModeIsActive()) {
+            CalibrareEncoder();
+            servoLogic();
+            updateTelemetry();
+            SetWheelsPower();
+            pidSPinnerLogic();
+            flywheelLogic();
+            if (gamepad1.circleWasPressed())
+            {
+                intakeMode=true;
+                outtakeMode=false;
+                if (intakeMode)
+                {
+                    colorDrivenSpinnerLogic();
+                    updateCulori();
+                }
             }
-        });
 
-        /*Thread systemsThread = new Thread(() -> {
-            while (opModeIsActive() && !isStopRequested()) {
 
+            if (gamepad1.squareWasPressed())
+            {
+                outtakeMode=true;
+                intakeMode=false;
+                if (outtakeMode)
+                {
+                    slots[0]=Color1;
+                    slots[1]=Color2;
+                    slots[2]=Color3;
+                    targetTicks+=targetTicks*60;
+                }
             }
-        });
-
-        Thread AimThread = new Thread(() ->{
-            while(opModeIsActive() && !isStopRequested())
-        });*/
-
-        wheelThread.start();
-        //systemsThread.start();
-        //AimThread.start();
-
-        while (opModeIsActive() && !isStopRequested()) {
             idle();
         }
-        //NU CRED ca e nevoie de thread uri neavand while uri in cod
-        //nu exista multi threading din cauza limitarilor soft/hard din control hub asa ca futi putin robotu pt acel
-        //multi threading
-    }
-
-    //TODO de bagat toate telemetria aici
-    private void UpdateTelemetry() {
-
-        telemetry.update();
     }
 }

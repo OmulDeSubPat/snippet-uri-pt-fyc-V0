@@ -11,8 +11,7 @@ import com.qualcomm.robotcore.util.ElapsedTime;
 @Autonomous(name = "All Motors Fixed", group = "Test")
 public class Auto extends OpMode {
 
-    private ElapsedTime timer;
-
+    private ElapsedTime timer = new ElapsedTime();
     private int state = 0;
 
     DcMotorEx spinner;
@@ -51,9 +50,6 @@ public class Auto extends OpMode {
         spinner.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         spinner.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        timer = new ElapsedTime();
-        timer.reset();
     }
 
     @Override
@@ -65,60 +61,23 @@ public class Auto extends OpMode {
     @Override
     public void loop() {
 
-        flywheel.setPower(0.7);
-
         switch (state) {
 
-            case 0: // Drive forward
-                setDrivePower(0.5);
-                timer.reset();
-                state = 1;
-                break;
-
-            case 1: // Drive for 1.5 seconds
-                if (timer.seconds() > 10) {
-                    setDrivePower(0.0);
-                    ejector.setPosition(0.285);
+            case 0: // WAIT 29 SECONDS
+                if (timer.seconds() >= 29.0) {
                     timer.reset();
-                    state = 2;
+                    state = 1;
                 }
                 break;
 
-            case 2: // Eject wait
-                if (timer.seconds() > 1.5) {
-                    ejector.setPosition(0.005);
-                    timer.reset();
-                    state = 3;
-                }
-                break;
-
-            case 3: // Spin spinner
-                spinner.setTargetPosition((int)(120 * TICKS_PER_REV));
-                spinner.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                spinner.setPower(0.5);
-                timer.reset();
-                state = 4;
-                break;
-
-            case 4: // Wait spinner
-                if (!spinner.isBusy() || timer.seconds() > 1.5) {
-                    ejector.setPosition(0.285);
-                    timer.reset();
-                    state = 5;
-                }
-                break;
-
-            case 5: // Final eject
-                if (timer.seconds() > 1.5) {
-                    ejector.setPosition(0.005);
-                    state = 6;
-                }
-                break;
-
-            case 6:
-                // DONE
+            case 1: // DRIVE FORWARD
+                setDrivePower(0.4);
                 break;
         }
+
+        telemetry.addData("State", state);
+        telemetry.addData("Time", timer.seconds());
+        telemetry.update();
     }
 
     private void setDrivePower(double power) {

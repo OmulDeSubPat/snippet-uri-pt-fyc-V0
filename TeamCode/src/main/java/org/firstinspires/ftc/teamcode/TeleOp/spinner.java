@@ -75,6 +75,7 @@ public class spinner extends LinearOpMode {
 
     // Spinner PID
     static final double TICKS_PER_REV = 384.5;
+    boolean fullstop=false;
     static final double TICKS_PER_DEGREE = TICKS_PER_REV / 360.0;
     double P = 0.0101;
     double I = 0.0000;
@@ -315,7 +316,7 @@ public class spinner extends LinearOpMode {
 
         if (alpha<100 && (h==150 || h==144) ) detected = 0;
         else if ((h > 215) || (alpha<100 && (h==160 || h==180))) detected = 2;
-        //else if (h > 135 && h < 160 && alpha>100) detected = 1;
+        else if (h > 135 && h < 160 && alpha>100) detected = 1;
         else if((h==140 || h==145) &&  alpha==43) detected = 0;
         else if (h > 135 && h < 160 && alpha>60)detected =1;
         else if ((h==210 || h==220 || h==225 || h==200) && alpha<100) detected=2;
@@ -405,7 +406,7 @@ public class spinner extends LinearOpMode {
     }
 
 
-    public void runAiming() {
+   /* public void runAiming() {
         if (!activtureta)return;
         YawPitchRollAngles ypr = imu.getRobotYawPitchRollAngles();
         limelight.updateRobotOrientation(ypr.getYaw());
@@ -487,7 +488,7 @@ public class spinner extends LinearOpMode {
         double PutereCautare =Limitare(scanSpeed);
         tureta.setPower(PutereCautare);
     }
-
+*/
     private double Limitare(double power) {
         double angleDeg = getSpinnerPositionCorrected() * DEG_PER_TICK;
 
@@ -693,7 +694,7 @@ public class spinner extends LinearOpMode {
             }
 
             double flywheelPower = flywheelOn ? logFlywheel(flywheelInput) : 0;
-            if (flywheelOn) flywheel.setPower(0.55);
+            if (flywheelOn) flywheel.setPower(0.45);
             else flywheel.setPower(0);
 
             if (gamepad1.squareWasPressed()) {
@@ -721,7 +722,10 @@ public class spinner extends LinearOpMode {
                 outtakeActive = true;
             }
 
-
+            if (gamepad1.yWasPressed())
+            {
+                targetTicks +=  (15 * TICKS_PER_DEGREE);
+            }
 
 
             double currentPos = getSpinnerPositionCorrected();
@@ -825,19 +829,28 @@ public class spinner extends LinearOpMode {
 
 */
 
+            if(gamepad2.left_bumper)
+            {
+                flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            }
+            if (gamepad2.right_bumper)
+            {
+                flywheel.setPower(0);
+            }
 
                 updateTelemetry();
             SetWheelsPower();
-            if (gamepad1.yWasPressed()) {
+           /* if (gamepad1.yWasPressed()) {
                 activtureta = !activtureta;
-            }
+            }*/
 
-            if (activtureta) {
-                runAiming();
+
+         /*   if (activtureta) {
+                //runAiming();
                 Lansare();
             } else {
                 tureta.setPower(0);
-            }
+            }*/
             simpleOuttake();
             wasFull = spinnerIsFull();
 

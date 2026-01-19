@@ -70,6 +70,10 @@ public class TeleOpMain extends LinearOpMode {
     boolean intakeMode=false;
     boolean outtakeMode=false;
     private ElapsedTime spinnerTimeout = new ElapsedTime();
+    private ElapsedTime outtakeTimeout = new ElapsedTime();
+    double ejectorDown=0.285;
+    double ejectorUp=0.005;
+
 
 
 
@@ -291,6 +295,7 @@ public class TeleOpMain extends LinearOpMode {
         return spinner.getCurrentPosition() + encoderOffset;
     }
 
+
     private void updateTelemetry() {
         if (outtakeMode) {
             telemetry.addData("Slot 1", slots[0]);
@@ -303,6 +308,8 @@ public class TeleOpMain extends LinearOpMode {
             telemetry.addData("Slot 2", Color2);
             telemetry.addData("Slot 3", Color3);
         }
+        telemetry.addData("timp_intake",spinnerTimeout.time());
+        telemetry.addData("timp_outtake",outtakeTimeout.time());
         telemetry.addData("spinner unghi",getSpinnerPositionCorrected()*DEG_PER_TICK);
         telemetry.update();
     }
@@ -358,7 +365,32 @@ public class TeleOpMain extends LinearOpMode {
                     slots[0]=Color1;
                     slots[1]=Color2;
                     slots[2]=Color3;
-                    targetTicks+=targetTicks*60;
+                    spinnerTimeout.reset();
+                    if (spinnerTimeout.milliseconds() >= 100) {
+                        targetTicks += 60 * DEG_PER_TICK;
+                    }
+                    outtakeTimeout.reset();
+                    if (outtakeTimeout.milliseconds() >= 1000) {
+                        ejector.setPosition(ejectorUp);
+                    }
+                    if (outtakeTimeout.milliseconds() >= 4000) {
+                        ejector.setPosition(ejectorDown);
+                    }
+                    if (outtakeTimeout.milliseconds() >= 8000){
+                        targetTicks += 120*DEG_PER_TICK;
+                    }
+                    if (outtakeTimeout.milliseconds() >= 10000) {
+                        ejector.setPosition(ejectorUp);
+                    }
+                    if (outtakeTimeout.milliseconds() >= 14000) {
+                        ejector.setPosition(ejectorDown);
+                    }
+                    if (outtakeTimeout.milliseconds() >= 18000)
+                    {
+                        targetTicks += 60 * DEG_PER_TICK;
+                    }
+                    //ETC
+
                 }
             }
             idle();

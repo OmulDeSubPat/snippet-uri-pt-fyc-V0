@@ -46,7 +46,7 @@ public class TurretAiming {
     double LEFT_LIMIT = -100;
     double RIGHT_LIMIT = 100;
 
-    double DEG_PER_TICK = 360.0 / 560.0; //Conversie grad/tick
+    double DEG_PER_TICK = 0;
 
 
     //Variabile Misc/Vision

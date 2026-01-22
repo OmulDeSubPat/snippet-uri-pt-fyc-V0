@@ -13,7 +13,6 @@
     import com.qualcomm.robotcore.hardware.IMU;
     import com.qualcomm.robotcore.hardware.Servo;
     import com.qualcomm.robotcore.util.ElapsedTime;
-    import com.sun.tools.javac.processing.PrintingProcessor;
 
     import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -37,6 +36,7 @@
         int Color2 = 0;
         int Color3 = 0;
         int detectedBalls = 0;
+        int slotIntakeIndex = 0;
         double prev_t = 0;
         ColorSensor colorsensorSLot1;
         ColorSensor colorsensorSLot2;
@@ -64,6 +64,7 @@
         boolean step9Done = false;
         boolean step10Done = false;
         boolean step11Done = false;
+        boolean spinIntake = false;
 
         Limelight3A limelight;
         IMU imu;
@@ -77,6 +78,7 @@
         private ElapsedTime outtakeTimeout = new ElapsedTime();
         double ejectorDown = 0.285;
         double ejectorUp = 0.005;
+        final double[] slotPositionsIntake = {0,0.19,0.38};
         PinpointLocalizer pinpoint;
         Pose pose;
         double CoordX, CoordY, header;
@@ -198,7 +200,7 @@
         }
 
 
-        private int smekerie(ColorSensor colorSensor) {
+        private int smekerie1(ColorSensor colorSensor) {
             int r = colorSensor.red();
             int g = colorSensor.green();
             int b = colorSensor.blue();
@@ -214,9 +216,40 @@
             else detected = 0;
             return detected;
         }
+        private int smekerie2(ColorSensor colorSensor) {
+            int r = colorSensor.red();
+            int g = colorSensor.green();
+            int b = colorSensor.blue();
+            int alpha = colorSensor.alpha();
+            double h = getHue(r, g, b);
+            h=h-30;
+            int detected;
+            if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
+            else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
+            else if (h > 135 && h < 160 && alpha > 100) detected = 1;
+            else if ((h == 140 || h == 145) && alpha == 43) detected = 0;
+            else if (h > 135 && h < 160 && alpha > 60) detected = 1;
+            else if ((h == 210 || h == 220 || h == 225 || h == 200) && alpha < 100) detected = 2;
+            else detected = 0;
+            return detected;
+        }
 
-        private int CuloareFinala(ColorSensor sensor, int[] last5, int index) {
-            last5[index] = smekerie(sensor);
+        private int CuloareFinala1(ColorSensor sensor, int[] last5, int index) {
+            last5[index] = smekerie1(sensor);
+
+            int count1 = 0, count2 = 0;
+            for (int v : last5) {
+                if (v == 1) count1++;
+                else if (v == 2) count2++;
+            }
+
+            if (count1 >= 3) return 1;
+            if (count2 >= 3) return 2;
+            return 0;
+        }
+
+        private int CuloareFinala2(ColorSensor sensor, int[] last5, int index) {
+            last5[index] = smekerie2(sensor);
 
             int count1 = 0, count2 = 0;
             for (int v : last5) {
@@ -231,11 +264,11 @@
 
 
         private void updateCulori() {
-            Color1 = CuloareFinala(colorsensorSLot1, last5Sensor1, indexSensor1);
+            Color1 = CuloareFinala1(colorsensorSLot1, last5Sensor1, indexSensor1);
             indexSensor1 = (indexSensor1 + 1) % 5;
-            Color2 = CuloareFinala(colorsensorSLot2, last5Sensor2, indexSensor2);
+            Color2 = CuloareFinala1(colorsensorSLot2, last5Sensor2, indexSensor2);
             indexSensor2 = (indexSensor2 + 1) % 5;
-            Color3 = CuloareFinala(colorsensorSLot3, last5Sensor3, indexSensor3);
+            Color3 = CuloareFinala1(colorsensorSLot3, last5Sensor3, indexSensor3);
             indexSensor3 = (indexSensor3 + 1) % 5;
         }
 
@@ -266,8 +299,16 @@
             if (gamepad1.touchpadWasPressed())
                 Posspinner = 0;
             //0.19=60 de grade
-            if (gamepad1.dpadRightWasPressed()) Posspinner = Posspinner + 0.19;
-            if (gamepad1.dpadLeftWasPressed()) Posspinner = Posspinner - 0.19;
+            if (gamepad1.dpadRightWasPressed()) {
+                slotIntakeIndex++;
+                slotIntakeIndex = slotIntakeIndex % 3;
+                Posspinner = slotPositionsIntake[slotIntakeIndex];
+            }
+            if (gamepad1.dpadLeftWasPressed()){
+                slotIntakeIndex--;
+                if(slotIntakeIndex < 0) slotIntakeIndex = 2;
+                Posspinner = slotPositionsIntake[slotIntakeIndex];
+            }
         }
 
         private boolean spinnerFull() {
@@ -293,7 +334,7 @@
 
         private void colorDrivenSpinnerLogic() {
 
-            if (spinnerFull()) return;
+           // if (spinnerFull()) return;
             detectedBalls = 0;
             if (Color1 != 0) detectedBalls++;
             if (Color2 != 0) detectedBalls++;
@@ -309,7 +350,7 @@
                         Posspinner = 0.38;
                         break;
                     case 3:
-                        Posspinner = 0.38+0.19;
+                        Posspinner = 0.085;
                         break;
                 }
 
@@ -349,6 +390,7 @@
                 telemetry.addData("Slot 2", Color2);
                 telemetry.addData("Slot 3", Color3);
             }
+
             telemetry.addData("timp_intake", spinnerTimeout.time());
             telemetry.addData("timp_outtake", outtakeTimeout.time());
             telemetry.addData("x", CoordX);
@@ -357,6 +399,9 @@
             telemetry.addData("unghiSPinner", spinnerFar.getPosition());
             telemetry.addData("close", spinnerCLose.getPosition());
             telemetry.addData("balls",detectedBalls);
+            telemetry.addData("Sensor 1",getHue(colorsensorSLot1.red(),colorsensorSLot1.green(),colorsensorSLot1.blue()));
+            telemetry.addData("Sensor 2",getHue(colorsensorSLot2.red(),colorsensorSLot2.green(), colorsensorSLot2.blue()));
+            telemetry.addData("Sensor 3",getHue(colorsensorSLot3.red(),colorsensorSLot3.green(), colorsensorSLot3.blue()));
             telemetry.update();
         }
 
@@ -465,8 +510,11 @@
                 waitForStart();
 
                 while (opModeIsActive()) {
-                    if (Posspinner >= PosspinnerMin && Posspinner <= PosspinnerMax)
+                    if (Posspinner >= PosspinnerMin && Posspinner <= PosspinnerMax) {
                         spinnerFar.setPosition(Posspinner);
+                        spinnerCLose.setPosition(Posspinner);
+                    }
+
                     servoLogic();
                     updateTelemetry();
                     SetWheelsPower();
@@ -474,11 +522,13 @@
                     if (gamepad1.crossWasPressed()  && !gamepad1.crossWasReleased()){
                         intake.setPower(1);
                     } else if (gamepad1.crossWasReleased()) {
-                        intake.setPower(intakeMode ? -1:0);
+                        intake.setPower(spinIntake ? -1:0);
                     }
                     if (gamepad1.circleWasPressed()) {
                         intake.setPower(-1);
                         intakeMode = true;
+                        spinIntake = !spinIntake;
+                        intake.setPower(spinIntake ? -1: 0);
                         outtakeMode = false;
                         ballsLoaded = 0;
                         spinnerFar.setPosition(0);

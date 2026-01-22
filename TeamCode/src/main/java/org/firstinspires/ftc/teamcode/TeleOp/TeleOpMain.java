@@ -207,6 +207,7 @@
             int alpha = colorSensor.alpha();
             double h = getHue(r, g, b);
             int detected;
+            if (h>147 && h<154) detected=0;
             if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
             else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
             else if (h > 135 && h < 160 && alpha > 100) detected = 1;
@@ -397,8 +398,11 @@
             telemetry.addData("y", CoordY);
             telemetry.addData("heading", header);
             telemetry.addData("unghiSPinner", spinnerFar.getPosition());
-            telemetry.addData("close", spinnerCLose.getPosition());
             telemetry.addData("balls",detectedBalls);
+
+            telemetry.addData("Sensor 1a", colorsensorSLot1.alpha());
+            telemetry.addData("Sensor 2a", colorsensorSLot2.alpha());
+            telemetry.addData("Sensor 3a", colorsensorSLot3.alpha());
             telemetry.addData("Sensor 1",getHue(colorsensorSLot1.red(),colorsensorSLot1.green(),colorsensorSLot1.blue()));
             telemetry.addData("Sensor 2",getHue(colorsensorSLot2.red(),colorsensorSLot2.green(), colorsensorSLot2.blue()));
             telemetry.addData("Sensor 3",getHue(colorsensorSLot3.red(),colorsensorSLot3.green(), colorsensorSLot3.blue()));

@@ -13,6 +13,7 @@
     import com.qualcomm.robotcore.hardware.IMU;
     import com.qualcomm.robotcore.hardware.Servo;
     import com.qualcomm.robotcore.util.ElapsedTime;
+    import com.sun.tools.javac.processing.PrintingProcessor;
 
     import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
@@ -35,7 +36,8 @@
         int Color1 = 0;
         int Color2 = 0;
         int Color3 = 0;
-
+        int detectedBalls = 0;
+        double prev_t = 0;
         ColorSensor colorsensorSLot1;
         ColorSensor colorsensorSLot2;
         ColorSensor colorsensorSLot3;
@@ -69,6 +71,7 @@
         double DEG_PER_TICK = 360.0 / 383.6;
         boolean flywheelOn = false;
         boolean intakeMode = false;
+        boolean intakeReverse = false;
         boolean outtakeMode = false;
         private ElapsedTime spinnerTimeout = new ElapsedTime();
         private ElapsedTime outtakeTimeout = new ElapsedTime();
@@ -291,12 +294,12 @@
         private void colorDrivenSpinnerLogic() {
 
             if (spinnerFull()) return;
-            int detectedBalls = 0;
+            detectedBalls = 0;
             if (Color1 != 0) detectedBalls++;
             if (Color2 != 0) detectedBalls++;
             if (Color3 != 0) detectedBalls++;
 
-            if (Color1!=0 && spinnerTimeout.milliseconds() >= 50) {
+            if (Color1!=0 && spinnerTimeout.milliseconds() >= 500) {
 
                 switch (detectedBalls) {
                     case 1:
@@ -353,11 +356,17 @@
             telemetry.addData("heading", header);
             telemetry.addData("unghiSPinner", spinnerFar.getPosition());
             telemetry.addData("close", spinnerCLose.getPosition());
+            telemetry.addData("balls",detectedBalls);
             telemetry.update();
         }
 
 
         private void runOuttake() {
+            intake.setPower(-1);
+            final int EJECTOR_UP_DELAY = 300;
+            final int EJECTOR_DOWN_DELAY = 300;
+            final int SPINNER_SLOT_CHANGE_DELAY = 300;
+            final int INITIAL_DELAY = 1200;
 
             slots[0] = Color1;
             slots[1] = Color2;
@@ -367,58 +376,69 @@
             Color2 = 0;
             Color3 = 0;
 
+
             double t = outtakeTimeout.milliseconds();
 
-            if (t >= 10 && !step1Done) {
-                Posspinner = 0.095;
+            if (t - prev_t >= 10 && !step1Done) {
+                Posspinner = 0.085;// 0.1
                 step1Done = true;
+                prev_t = 10;
             }
 
-            if (t >= 1000 && !step2Done) {
+            if (t >= prev_t + INITIAL_DELAY && !step2Done && step1Done) {
                 ejector.setPosition(ejectorUp);
                 step2Done = true;
+                prev_t += INITIAL_DELAY;
             }
 
-            if (t >= 2000 && !step3Done) {
+            if (t >= prev_t + EJECTOR_UP_DELAY && !step3Done && step2Done) {
                 ejector.setPosition(ejectorDown);
                 step3Done = true;
+                prev_t += EJECTOR_UP_DELAY;
             }
 
-            if (t >= 4000 && !step4Done) {
-                Posspinner = 0.29;
+            if (t >= prev_t + EJECTOR_DOWN_DELAY && !step4Done && step3Done) {
+                Posspinner = 0.28; // 0.29
                 step4Done = true;
+                prev_t += EJECTOR_DOWN_DELAY;
             }
 
-            if (t >= 6000 && !step5Done) {
+            if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step5Done && step4Done) {
                 ejector.setPosition(ejectorUp);
                 step5Done = true;
+                prev_t += SPINNER_SLOT_CHANGE_DELAY;
             }
 
-            if (t >= 8000 && !step6Done) {
+            if (t >= prev_t + EJECTOR_UP_DELAY && !step6Done  && step5Done) {
                 ejector.setPosition(ejectorDown);
                 step6Done = true;
+                prev_t += EJECTOR_UP_DELAY;
             }
 
-            if (t >= 10000 && !step7Done) {
-                Posspinner = 0.49;
+            if (t >= prev_t + EJECTOR_DOWN_DELAY && !step7Done && step6Done) {
+                Posspinner = 0.46;// 0.48
                 step7Done = true;
+                prev_t += EJECTOR_DOWN_DELAY;
             }
 
-            if (t >= 12000 && !step8Done) {
+            if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY  && !step8Done && step7Done) {
                 ejector.setPosition(ejectorUp);
                 step8Done = true;
+                prev_t += SPINNER_SLOT_CHANGE_DELAY;
             }
 
-            if (t >= 14000 && !step9Done) {
+            if (t >= prev_t + EJECTOR_UP_DELAY && !step9Done && step8Done) {
                 ejector.setPosition(ejectorDown);
                 step9Done = true;
+                prev_t += EJECTOR_UP_DELAY;
             }
-            if (t >= 16000 && !step10Done) {
+            if (t >= prev_t + EJECTOR_DOWN_DELAY && !step10Done && step9Done) {
                 Posspinner = 0;
                 step10Done = true;
                 outtakeMode = false;
                 intakeMode = false;
                 ballsLoaded = 0;
+                prev_t = 0;
             }
         }
 
@@ -451,6 +471,11 @@
                     updateTelemetry();
                     SetWheelsPower();
                     flywheelLogic();
+                    if (gamepad1.crossWasPressed()  && !gamepad1.crossWasReleased()){
+                        intake.setPower(1);
+                    } else if (gamepad1.crossWasReleased()) {
+                        intake.setPower(intakeMode ? -1:0);
+                    }
                     if (gamepad1.circleWasPressed()) {
                         intake.setPower(-1);
                         intakeMode = true;
@@ -459,9 +484,9 @@
                         spinnerFar.setPosition(0);
                     }
 
-                    if (gamepad1.psWasPressed()) {
-                        intake.setPower(1);
-                    }
+//                    if (gamepad1.psWasPressed()) {
+//                        intake.setPower(1);
+//                    }
 
                     if (gamepad1.yWasPressed()) {
                         intake.setPower(0);
@@ -473,7 +498,7 @@
                     }
 
 
-                    if (gamepad1.squareWasPressed()) {
+                    if (gamepad1.right_trigger > 0.8) {
                         outtakeMode = true;
                         intakeMode = false;
                         intake.setPower(0);

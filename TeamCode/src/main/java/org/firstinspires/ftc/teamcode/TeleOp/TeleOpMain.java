@@ -12,7 +12,6 @@
     import com.qualcomm.robotcore.hardware.DcMotorSimple;
     import com.qualcomm.robotcore.hardware.IMU;
     import com.qualcomm.robotcore.hardware.Servo;
-    import com.qualcomm.robotcore.hardware.TouchSensor;
     import com.qualcomm.robotcore.util.ElapsedTime;
 
     import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
@@ -29,8 +28,6 @@
         int indexSensor3 = 0;
 
 
-        int encoderOffset = 0;
-        // Spinner slots
         int[] slots = new int[3];
         int[] totem = {2, 1, 2};
 
@@ -42,7 +39,6 @@
         ColorSensor colorsensorSLot1;
         ColorSensor colorsensorSLot2;
         ColorSensor colorsensorSLot3;
-        DcMotorEx spinner;
         DcMotor intake;
         DcMotorEx tureta;
         Servo ejector;
@@ -54,15 +50,6 @@
         Servo spinnerCLose;
         Servo spinnerFar;
 
-        // Spinner PID
-        static final double TICKS_PER_REV = 384.5;
-        double P = 0.0101;
-        double I = 0.0001;//spinner
-        double D = 0.0015;
-        double integralSum = 0;
-
-        double lastError = 0;
-        double targetTicks = 0;
 
         boolean step1Done = false;
         boolean step2Done = false;
@@ -81,8 +68,6 @@
 
         double DEG_PER_TICK = 360.0 / 383.6;
         boolean flywheelOn = false;
-        TouchSensor limitswitch;
-        boolean butonApasat = false;
         boolean intakeMode = false;
         boolean outtakeMode = false;
         private ElapsedTime spinnerTimeout = new ElapsedTime();
@@ -92,18 +77,18 @@
         PinpointLocalizer pinpoint;
         Pose pose;
         double CoordX, CoordY, header;
-        double Posspinner=0;
-        double PosspinnerMin=0;
-        double PosspinnerMax =0.95;
+        double Posspinner = 0;
+        double PosspinnerMin = 0;
+        double PosspinnerMax = 0.95;
         int ballsLoaded = 0;
 
-        static final double FLYWHEEL_TICKS_PER_REV = 384.5; // depinde de motor!
+        static final double FLYWHEEL_TICKS_PER_REV = 384.5;
         static final double TARGET_RPM = 180;
 
         double flywheelPowerHigh = 0.6;
-        double flywheelPowerLow  = 0.5;
+        double flywheelPowerLow = 0.5;
 
-        double flywheelTolerance =20; // RPM
+        double flywheelTolerance = 20; // RPM
 
 
         private void InitWheels() {
@@ -120,15 +105,9 @@
 
         private void InitDc() {
 
-            spinner = hardwareMap.get(DcMotorEx.class, "spinner");
             intake = hardwareMap.get(DcMotor.class, "intake");
             tureta = hardwareMap.get(DcMotorEx.class, "tureta");
             flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
-            limitswitch = hardwareMap.get(TouchSensor.class, "limitswitch");
-
-          //  spinner.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-          //  spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-          //  spinner.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
             tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
             tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
@@ -164,9 +143,9 @@
             colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
             colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
             colorsensorSLot3 = hardwareMap.colorSensor.get("Color3");
-                pinpoint=new PinpointLocalizer(hardwareMap, Constants.localizerConstants);
-                Pose startPos=new Pose(0, 0, 0);
-                pinpoint.setStartPose(startPos);
+            pinpoint = new PinpointLocalizer(hardwareMap, Constants.localizerConstants);
+            Pose startPos = new Pose(0, 0, 0);
+            pinpoint.setStartPose(startPos);
         }
 
 
@@ -215,14 +194,6 @@
             return h;
         }
 
-        private void CalibrareSpinner() {
-            int ticksActual = getSpinnerPositionCorrected();
-            double pasTicks = TICKS_PER_REV / 6.0;
-            int celMaiApropiat = (int) Math.round(ticksActual / pasTicks) * (int) Math.round(pasTicks);
-            int delta = celMaiApropiat - ticksActual;
-            encoderOffset += delta;
-            targetTicks += delta;
-        }
 
         private int smekerie(ColorSensor colorSensor) {
             int r = colorSensor.red();
@@ -290,21 +261,11 @@
                 ejector.setPosition(0.005);
             }
             if (gamepad1.touchpadWasPressed())
-                Posspinner=0;
+                Posspinner = 0;
             //0.19=60 de grade
-            if (gamepad1.dpadRightWasPressed())Posspinner=Posspinner+0.19;
-            if (gamepad1.dpadLeftWasPressed())Posspinner=Posspinner-0.19;
+            if (gamepad1.dpadRightWasPressed()) Posspinner = Posspinner + 0.19;
+            if (gamepad1.dpadLeftWasPressed()) Posspinner = Posspinner - 0.19;
         }
-      /*  private void pidSPinnerLogic() {
-            double currentPos = getSpinnerPositionCorrected();
-            double error = targetTicks - currentPos;
-            integralSum += error;
-            double derivative = error - lastError;
-            lastError = error;
-            double pidOutput = error * P + integralSum * I + derivative * D;
-            pidOutput = Math.max(-0.5, Math.min(0.5, pidOutput));
-            if (!butonApasat) spinner.setPower(pidOutput);
-        }*/
 
         private boolean spinnerFull() {
             if (Color1 != 0 && Color2 != 0 && Color3 != 0) return true;
@@ -319,11 +280,9 @@
 
             if (currentRPM < targetRPM - flywheelTolerance) {
                 return flywheelPowerHigh;   // accelerează
-            }
-            else if (currentRPM > targetRPM + flywheelTolerance) {
+            } else if (currentRPM > targetRPM + flywheelTolerance) {
                 return flywheelPowerLow;    // coast
-            }
-            else {
+            } else {
                 return flywheelPowerLow;    // menține
             }
         }
@@ -331,24 +290,15 @@
 
         private void colorDrivenSpinnerLogic() {
 
-            // Reset when spinner becomes empty
-            if (Color1 == 0 && Color2 == 0 && Color3 == 0) {
-                ballsLoaded = 0;
-                return;
-            }
-
-            // Count detected balls
+            if (spinnerFull()) return;
             int detectedBalls = 0;
             if (Color1 != 0) detectedBalls++;
             if (Color2 != 0) detectedBalls++;
             if (Color3 != 0) detectedBalls++;
 
-            // Act only on NEW ball
-            if (detectedBalls > ballsLoaded && spinnerTimeout.milliseconds() >= 50) {
+            if (Color1!=0 && spinnerTimeout.milliseconds() >= 50) {
 
-                ballsLoaded = detectedBalls;
-
-                switch (ballsLoaded) {
+                switch (detectedBalls) {
                     case 1:
                         Posspinner = 0.19;
                         break;
@@ -356,13 +306,15 @@
                         Posspinner = 0.38;
                         break;
                     case 3:
-                        Posspinner = 0.38;
+                        Posspinner = 0.38+0.19;
                         break;
                 }
 
                 spinnerTimeout.reset();
             }
         }
+
+
 
 
 
@@ -381,9 +333,6 @@
                 slots2[2] = temp;
             }
         */
-        private int getSpinnerPositionCorrected() {
-            return spinner.getCurrentPosition() + encoderOffset;
-        }
 
 
         private void updateTelemetry() {
@@ -399,25 +348,14 @@
             }
             telemetry.addData("timp_intake", spinnerTimeout.time());
             telemetry.addData("timp_outtake", outtakeTimeout.time());
-            telemetry.addData("spinner unghi", getSpinnerPositionCorrected() * DEG_PER_TICK);
             telemetry.addData("x", CoordX);
             telemetry.addData("y", CoordY);
             telemetry.addData("heading", header);
-            telemetry.addData("far",spinnerFar.getPosition());
-            telemetry.addData("close",spinnerCLose.getPosition());
+            telemetry.addData("unghiSPinner", spinnerFar.getPosition());
+            telemetry.addData("close", spinnerCLose.getPosition());
             telemetry.update();
         }
 
-        private void CalibrareEncoder() {
-            if (limitswitch.isPressed()) {
-                if (!butonApasat) {
-                    CalibrareSpinner();
-                    butonApasat = true;
-                }
-            } else {
-                butonApasat = false;
-            }
-        }
 
         private void runOuttake() {
 
@@ -425,10 +363,14 @@
             slots[1] = Color2;
             slots[2] = Color3;
 
+            Color1 = 0;
+            Color2 = 0;
+            Color3 = 0;
+
             double t = outtakeTimeout.milliseconds();
 
             if (t >= 10 && !step1Done) {
-                Posspinner=0.095;
+                Posspinner = 0.095;
                 step1Done = true;
             }
 
@@ -443,7 +385,7 @@
             }
 
             if (t >= 4000 && !step4Done) {
-                Posspinner=0.29;
+                Posspinner = 0.29;
                 step4Done = true;
             }
 
@@ -458,7 +400,7 @@
             }
 
             if (t >= 10000 && !step7Done) {
-                Posspinner=0.49;
+                Posspinner = 0.49;
                 step7Done = true;
             }
 
@@ -475,106 +417,88 @@
                 Posspinner = 0;
                 step10Done = true;
                 outtakeMode = false;
-                intakeMode = false;   // 🔥 REQUIRED
-                ballsLoaded = 0;      // 🔥 REQUIRED
+                intakeMode = false;
+                ballsLoaded = 0;
             }
+        }
 
-          /*  if (t>=3200 && !step11Done)
+
+            private void Localizare ()
             {
-                spinner.setPower(0.15);  // move slowly toward limit switch
-                if (limitswitch.isPressed()) {
-                    spinner.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-                    spinner.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-                    spinner.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-                    integralSum = 0;      // reset PID integral
-                    lastError = 0;        // reset PID derivative
-                }
-                step11Done=true;
+                pinpoint.update();
+                Pose position = pinpoint.getPose();
+                CoordX = position.getX();
+                CoordY = position.getY();
+                header = position.getHeading();
 
-            }*/
-        }
-
-
-        private void Localizare()
-        {
-            pinpoint.update();
-            Pose position=pinpoint.getPose();
-            CoordX=position.getX();
-            CoordY=position.getY();
-            header=position.getHeading();
-
-        }
-
-
-        @Override
-        public void runOpMode() {
-            InitWheels();
-            InitAux();
-            InitDc();
-            InitLL();
-            InitServo();
-
-            waitForStart();
-
-            while (opModeIsActive()) {
-               // CalibrareEncoder();
-                if (Posspinner>=PosspinnerMin && Posspinner<=PosspinnerMax)spinnerFar.setPosition(Posspinner);
-                servoLogic();
-                updateTelemetry();
-                SetWheelsPower();
-                flywheelLogic();
-                if (gamepad1.circleWasPressed()) {
-                    intake.setPower(-1);
-                    intakeMode = true;
-                    outtakeMode = false;
-                    ballsLoaded = 0;
-                    spinnerFar.setPosition(0);
-                }
-
-                if (gamepad1.psWasPressed())
-                {
-                    intake.setPower(1);
-                }
-
-                if (gamepad1.yWasPressed())
-                {
-                    intake.setPower(0);
-                }
-
-                if (intakeMode && !outtakeMode) {
-                    updateCulori();
-                    colorDrivenSpinnerLogic();
-                }
-
-
-
-                if (gamepad1.squareWasPressed()) {
-                    outtakeMode = true;
-                    intakeMode = false;
-                    intake.setPower(0);
-                    outtakeTimeout.reset();
-
-                    integralSum = 0;
-                    lastError = 0;
-                    step1Done = false;
-                    step2Done = false;
-                    step3Done = false;
-                    step4Done = false;
-                    step5Done = false;
-                    step6Done = false;
-                    step7Done = false;
-                    step8Done = false;
-                    step9Done = false;
-                    step10Done = false;
-                }
-
-                if (outtakeMode) {
-                   runOuttake();
-                }
-                Localizare();
-                idle();
             }
+
+
+            @Override
+            public void runOpMode () {
+                InitWheels();
+                InitAux();
+                InitDc();
+                InitLL();
+                InitServo();
+
+                waitForStart();
+
+                while (opModeIsActive()) {
+                    if (Posspinner >= PosspinnerMin && Posspinner <= PosspinnerMax)
+                        spinnerFar.setPosition(Posspinner);
+                    servoLogic();
+                    updateTelemetry();
+                    SetWheelsPower();
+                    flywheelLogic();
+                    if (gamepad1.circleWasPressed()) {
+                        intake.setPower(-1);
+                        intakeMode = true;
+                        outtakeMode = false;
+                        ballsLoaded = 0;
+                        spinnerFar.setPosition(0);
+                    }
+
+                    if (gamepad1.psWasPressed()) {
+                        intake.setPower(1);
+                    }
+
+                    if (gamepad1.yWasPressed()) {
+                        intake.setPower(0);
+                    }
+
+                    if (intakeMode && !outtakeMode) {
+                        updateCulori();
+                        colorDrivenSpinnerLogic();
+                    }
+
+
+                    if (gamepad1.squareWasPressed()) {
+                        outtakeMode = true;
+                        intakeMode = false;
+                        intake.setPower(0);
+                        outtakeTimeout.reset();
+
+                        step1Done = false;
+                        step2Done = false;
+                        step3Done = false;
+                        step4Done = false;
+                        step5Done = false;
+                        step6Done = false;
+                        step7Done = false;
+                        step8Done = false;
+                        step9Done = false;
+                        step10Done = false;
+                    }
+
+                    if (outtakeMode) {
+                        runOuttake();
+                    }
+                    Localizare();
+                    idle();
+                }
                 //ETC
 
+            }
         }
-    }
+

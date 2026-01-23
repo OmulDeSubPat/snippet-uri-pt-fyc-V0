@@ -12,7 +12,7 @@ import com.qualcomm.robotcore.util.Range;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp(name = "AutoAIMBlue")
-public class codisidoralbastru extends LinearOpMode {
+public class codursuTureta extends LinearOpMode {
 
     /* ================= HARDWARE ================= */
 
@@ -29,12 +29,12 @@ public class codisidoralbastru extends LinearOpMode {
             360.0 / (MOTOR_TICKS_PER_REV * MOTOR_TO_TURRET_RATIO);
 
     // Turret soft limits (degrees)
-    private static final double LEFT_LIMIT  = -70;
-    private static final double RIGHT_LIMIT = 90;
+    private static final double LEFT_LIMIT  = -110;
+    private static final double RIGHT_LIMIT = 110;
 
     // Control
-    private static final double kP = 0.02;
-    private static final double MAX_POWER = 0.3;
+    private static final double kP = 0.015;
+    private static final double MAX_POWER = 0.2;
 
     /* ================= LOCALIZATION ================= */
 
@@ -46,8 +46,8 @@ public class codisidoralbastru extends LinearOpMode {
     /* ================= TARGET ================= */
 
     // Example target (field coordinates)
-    private double xC = 10;
-    private double yC = 140;
+    private double xC = 0;
+    private double yC = 144;
 
     /* ================= INIT ================= */
 
@@ -63,30 +63,7 @@ public class codisidoralbastru extends LinearOpMode {
 
     private void initLocalization() {
         pinpoint = new PinpointLocalizer(hardwareMap, Constants.localizerConstants);
-        startPose = new Pose(22, 121, Math.toRadians(144
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        ));
+        startPose = new Pose(22, 127, Math.toRadians(-36));
         pinpoint.setStartPose(startPose);
     }
 
@@ -122,12 +99,15 @@ public class codisidoralbastru extends LinearOpMode {
 
         // Robot heading
         double robotHeading = Math.toDegrees(pose.getHeading());
-
-        // Desired turret angle (robot frame, UNCLIPPED)
+        double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK-180.0;
         double targetTurretDeg = normalizeAngle(fieldAngle - robotHeading);
+        // Desired turret angle (robot frame, UNCLIPPED)
+        if(Math.abs(targetTurretDeg) < RIGHT_LIMIT){
+            targetTurretDeg = -180;
+        }
 
         // Current turret angle
-        double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK;
+
 
         currentTurretDeg=normalizeAngle(currentTurretDeg);
         // Error
@@ -138,12 +118,13 @@ public class codisidoralbastru extends LinearOpMode {
 
         // ====== LIMIT SAFETY (THIS FIXES THE JUMPING) ======
 
-        if (currentTurretDeg >= RIGHT_LIMIT && power > 0) {
-            power = 0;
-        }
-        if (currentTurretDeg <= LEFT_LIMIT && power < 0) {
-            power = 0;
-        }
+//        if (currentTurretDeg <= RIGHT_LIMIT && power > 0) {
+//            power = 0;
+//        }
+//        if (currentTurretDeg >= LEFT_LIMIT && power < 0) {
+//            power = 0;
+//        }
+
 
         power = Range.clip(power, -MAX_POWER, MAX_POWER);
         tureta.setPower(power);
@@ -178,6 +159,7 @@ public class codisidoralbastru extends LinearOpMode {
         front_right.setPower(fr);
         back_right.setPower(br);
     }
+
 
     /* ================= OPMODE ================= */
 

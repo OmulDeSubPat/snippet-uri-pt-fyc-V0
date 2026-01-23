@@ -13,10 +13,11 @@
     import com.qualcomm.robotcore.hardware.IMU;
     import com.qualcomm.robotcore.hardware.Servo;
     import com.qualcomm.robotcore.util.ElapsedTime;
+    import com.qualcomm.robotcore.util.Range;
 
     import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-    @TeleOp(name = "&TeleOpMain")
+    @TeleOp(name = "&TeleOpMainBlueClose")
     public class TeleOpMain extends LinearOpMode {
 
         int[] last5Sensor1 = new int[5];
@@ -68,8 +69,6 @@
 
         Limelight3A limelight;
         IMU imu;
-
-        double DEG_PER_TICK = 360.0 / 383.6;
         boolean flywheelOn = false;
         boolean intakeMode = false;
         boolean intakeReverse = false;
@@ -87,14 +86,45 @@
         double PosspinnerMax = 0.95;
         int ballsLoaded = 0;
 
-        static final double FLYWHEEL_TICKS_PER_REV = 384.5;
-        static final double TARGET_RPM = 200;
+        static final double FLYWHEEL_TICKS_PER_REV = 28;
+        static final double TARGET_RPM = 2500;
 
-        double flywheelPowerHigh = 0.65;
-        double flywheelPowerLow = 0.55;
+        double flywheelPowerHigh = 0.55;
+        double flywheelPowerLow = 0.45;
 
         double flywheelTolerance = 20; // RPM
+        private static final double MOTOR_TICKS_PER_REV = 384.5;
+        private static final double MOTOR_TO_TURRET_RATIO = 76.0 / 24.0;
 
+        private static final double DEG_PER_TICK_TURETS =
+                360.0 / (MOTOR_TICKS_PER_REV * MOTOR_TO_TURRET_RATIO);
+
+        // Turret soft limits (degrees)
+        private static final double LEFT_LIMIT  = -110;
+        private static final double RIGHT_LIMIT = 110;
+
+        // Control
+        private static final double kP = 0.015;
+        private static final double MAX_POWER = 0.2;
+
+        /* ================= LOCALIZATION ================= */
+
+        private Pose startPose;
+
+        private double pX, pY;
+
+        /* ================= TARGET ================= */
+
+        // Example target (field coordinates)
+        private double xC = 0;
+        private double yC = 144;
+
+
+        private void initLocalization() {
+            pinpoint = new PinpointLocalizer(hardwareMap, Constants.localizerConstants);
+            startPose = new Pose(22, 127, Math.toRadians(-36));
+            pinpoint.setStartPose(startPose);
+        }
 
         private void InitWheels() {
             front_left = hardwareMap.dcMotor.get("lf");
@@ -111,17 +141,74 @@
         private void InitDc() {
 
             intake = hardwareMap.get(DcMotor.class, "intake");
-            tureta = hardwareMap.get(DcMotorEx.class, "tureta");
             flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
 
-            tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-            tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+            tureta = hardwareMap.get(DcMotorEx.class, "tureta");
             tureta.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
+            tureta.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
+            tureta.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
 
             flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         }
+        private double normalizeAngle(double angle) {
+            while (angle > 180) angle -= 360;
+            while (angle < -180) angle += 360;
+            return angle;
+        }
+
+        private void updateTurretAim() {
+
+            Pose pose = pinpoint.getPose();
+            pX = pose.getX();
+            pY = pose.getY();
+
+            // Vector robot -> target (field frame)
+            double dx = xC - pX;
+            double dy = yC - pY;
+
+            // Absolute field angle to target
+            double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));
+
+            // Robot heading
+            double robotHeading = Math.toDegrees(pose.getHeading());
+            double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK_TURETS-183.0;
+            double targetTurretDeg = normalizeAngle(fieldAngle - robotHeading);
+            // Desired turret angle (robot frame, UNCLIPPED)
+            if(Math.abs(targetTurretDeg) < RIGHT_LIMIT){
+                targetTurretDeg = -180;
+            }
+
+            // Current turret angle
+
+
+            currentTurretDeg=normalizeAngle(currentTurretDeg);
+            // Error
+            double error = normalizeAngle(targetTurretDeg - currentTurretDeg);
+
+            // P control
+            double power = error * kP;
+
+            // ====== LIMIT SAFETY (THIS FIXES THE JUMPING) ======
+
+//        if (currentTurretDeg <= RIGHT_LIMIT && power > 0) {
+//            power = 0;
+//        }
+//        if (currentTurretDeg >= LEFT_LIMIT && power < 0) {
+//            power = 0;
+//        }
+
+
+            power = Range.clip(power, -MAX_POWER, MAX_POWER);
+            tureta.setPower(power);
+
+            telemetry.addData("Target (raw)", "%.1f", targetTurretDeg);
+            telemetry.addData("Turret", "%.1f", currentTurretDeg);
+            telemetry.addData("Error", "%.1f", error);
+            telemetry.addData("Power", "%.2f", power);
+        }
+
 
         private void InitServo() {
             ejector = hardwareMap.get(Servo.class, "ejector");//0.285 down 0.005 up
@@ -217,23 +304,6 @@
             else detected = 0;
             return detected;
         }
-        private int smekerie2(ColorSensor colorSensor) {
-            int r = colorSensor.red();
-            int g = colorSensor.green();
-            int b = colorSensor.blue();
-            int alpha = colorSensor.alpha();
-            double h = getHue(r, g, b);
-            h=h-30;
-            int detected;
-            if (alpha < 100 && (h == 150 || h == 144)) detected = 0;
-            else if ((h > 215) || (alpha < 100 && (h == 160 || h == 180))) detected = 2;
-            else if (h > 135 && h < 160 && alpha > 100) detected = 1;
-            else if ((h == 140 || h == 145) && alpha == 43) detected = 0;
-            else if (h > 135 && h < 160 && alpha > 60) detected = 1;
-            else if ((h == 210 || h == 220 || h == 225 || h == 200) && alpha < 100) detected = 2;
-            else detected = 0;
-            return detected;
-        }
 
         private int CuloareFinala1(ColorSensor sensor, int[] last5, int index) {
             last5[index] = smekerie1(sensor);
@@ -249,19 +319,6 @@
             return 0;
         }
 
-        private int CuloareFinala2(ColorSensor sensor, int[] last5, int index) {
-            last5[index] = smekerie2(sensor);
-
-            int count1 = 0, count2 = 0;
-            for (int v : last5) {
-                if (v == 1) count1++;
-                else if (v == 2) count2++;
-            }
-
-            if (count1 >= 3) return 1;
-            if (count2 >= 3) return 2;
-            return 0;
-        }
 
 
         private void updateCulori() {
@@ -358,26 +415,6 @@
                 spinnerTimeout.reset();
             }
         }
-
-
-
-
-
-        /*
-            private void rotateSlotsRight() {
-                int temp = slots2[2];
-                slots2[2] = slots2[1];
-                slots2[1] = slots2[0];
-                slots2[0] = temp;
-            }
-
-            private void rotateSlotsLeft() {
-                int temp = slots2[0];
-                slots2[0] = slots2[1];
-                slots2[1] = slots2[2];
-                slots2[2] = temp;
-            }
-        */
 
 
         private void updateTelemetry() {
@@ -492,15 +529,6 @@
         }
 
 
-            private void Localizare ()
-            {
-                pinpoint.update();
-                Pose position = pinpoint.getPose();
-                CoordX = position.getX();
-                CoordY = position.getY();
-                header = position.getHeading();
-
-            }
 
 
             @Override
@@ -510,6 +538,7 @@
                 InitDc();
                 InitLL();
                 InitServo();
+                initLocalization();
 
                 waitForStart();
 
@@ -523,6 +552,13 @@
                     updateTelemetry();
                     SetWheelsPower();
                     flywheelLogic();
+                    pinpoint.update();
+                    updateTurretAim();
+
+                    telemetry.addData("X", "%.1f", pX);
+                    telemetry.addData("Y", "%.1f", pY);
+                    telemetry.addData("Heading", "%.1f",
+                            Math.toDegrees(pinpoint.getPose().getHeading()));
                     if (gamepad1.crossWasPressed()  && !gamepad1.crossWasReleased()){
                         intake.setPower(1);
                     } else if (gamepad1.crossWasReleased()) {
@@ -573,7 +609,6 @@
                     if (outtakeMode) {
                         runOuttake();
                     }
-                    Localizare();
                     idle();
                 }
                 //ETC

@@ -7,42 +7,47 @@ import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
+import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp(name = "AutoAIMBlue")
 public class codisidoralbastru extends LinearOpMode {
 
-    // Motors
-    private DcMotor front_left;
-    private DcMotor front_right;
-    private DcMotor back_left;
-    private DcMotor back_right;
+    /* ================= HARDWARE ================= */
 
+    private DcMotor front_left, front_right, back_left, back_right;
     private DcMotorEx tureta;
-    double LEFT_LIMIT = -70;   // degrees
-    double RIGHT_LIMIT = 70;  // degrees
 
-    // Localization
+    /* ================= CONSTANTS ================= */
+
+    // Encoder + gearing
+    private static final double MOTOR_TICKS_PER_REV = 384.5;
+    private static final double MOTOR_TO_TURRET_RATIO = 76.0 / 24.0;
+
+    private static final double DEG_PER_TICK =
+            360.0 / (MOTOR_TICKS_PER_REV * MOTOR_TO_TURRET_RATIO);
+
+    // Turret soft limits (degrees)
+    private static final double LEFT_LIMIT  = -70;
+    private static final double RIGHT_LIMIT = 70;
+
+    // Control
+    private static final double kP = 0.02;
+    private static final double MAX_POWER = 0.3;
+
+    /* ================= LOCALIZATION ================= */
+
     private PinpointLocalizer pinpoint;
-    private double pX = 0;
-    private double pY = 0;
-    private double distanceStart = 0;
     private Pose startPose;
-    private double headingFromStart = 0;
-    private double headingDifference;
 
-    //variables
+    private double pX, pY;
 
-    private double DEG_PER_TICK = 360.0 / 384.5;
+    /* ================= TARGET ================= */
 
-    private double xC;
-    private double yC;
-    private double rC;
-    private double cateta;
-    private double unghiRobot;
-    private double deg2rad = 180/3.141592654;
-
+    // Example target (field coordinates)
+    private double xC = 10;
+    private double yC = 140;
 
     /* ================= INIT ================= */
 
@@ -54,133 +59,127 @@ public class codisidoralbastru extends LinearOpMode {
 
         front_left.setDirection(DcMotorSimple.Direction.REVERSE);
         back_left.setDirection(DcMotorSimple.Direction.REVERSE);
-        front_right.setDirection(DcMotorSimple.Direction.FORWARD);
-        back_right.setDirection(DcMotorSimple.Direction.FORWARD);
     }
 
     private void initLocalization() {
         pinpoint = new PinpointLocalizer(hardwareMap, Constants.localizerConstants);
-        pinpoint.setStartPose(startPose = new Pose(22, 121, -36));
+        startPose = new Pose(22, 121, Math.toRadians(-36));
+        pinpoint.setStartPose(startPose);
     }
 
-    /* ================= DRIVE ================= */
-
-
-    /* ================= LOCALIZATION ================= */
-    private double limitAngle(double targetDeg) {
-        double currentDeg = tureta.getCurrentPosition() * DEG_PER_TICK;
-
-        if (currentDeg >= RIGHT_LIMIT && targetDeg > currentDeg) {
-            return RIGHT_LIMIT;
-        }
-        if (currentDeg <= LEFT_LIMIT && targetDeg < currentDeg) {
-            return LEFT_LIMIT;
-        }
-        return targetDeg;
-    }
-
-    private void updateLocalization() {
-        pinpoint.update();
-        Pose pose = pinpoint.getPose();
-        pX = pose.getX();
-        pY = pose.getY();
-        distanceStart = pose.distanceFrom(startPose);
-        headingFromStart = pinpoint.getPose().getHeading();
-
-    }
-    private void distanceRobot() {
-        pinpoint.update();
-
-        rC = Math.sqrt(
-                Math.pow(xC - pX, 2) +
-                        Math.pow(yC - pY, 2)
-        );
-
-        if (rC == 0) return; // safety
-
-        // pick correct cathetus
-        if (Math.abs(xC - pX) > Math.abs(yC - pY)) {
-            cateta = yC - pY;
-        } else {
-            cateta = xC - pX;
-        }
-
-        // angle in degrees
-        unghiRobot = Math.toDegrees(Math.asin(cateta / rC));
-    }
-
-    private void updateHeadingTureta() {
-        double headingTureta = tureta.getCurrentPosition() * DEG_PER_TICK;
-    }
-
-    /* ================= TELEMETRY ================= */
-
-    private void updateTelemetry() {
-        telemetry.addData("X", "%.2f", pX);
-        telemetry.addData("Y", "%.2f", pY);
-        telemetry.addData("Heading (rad)", "%.2f", pinpoint.getPose().getHeading());
-        telemetry.addData("headingtureta", tureta.getCurrentPosition() * DEG_PER_TICK);
-    }
-
-    /* ================= OPMODE ================= */
-    public void Rotate(double targetDeg) {
-        final double TICKS_PER_REV = 384.5;
-        final double MAX_TPS = (431.0 / 60.0) * TICKS_PER_REV;
-
-        targetDeg = limitAngle(targetDeg);
-
-        int targetTicks = (int) Math.round(targetDeg / DEG_PER_TICK);
-
-        tureta.setTargetPosition(targetTicks);
-        tureta.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-        tureta.setVelocity(MAX_TPS);
-    }
-
-
-    @Override
-    public void runOpMode() {
-        xC = 140;   // example
-        yC = 0;
-
-        initWheels();
-        initLocalization();
+    private void initTurret() {
         tureta = hardwareMap.get(DcMotorEx.class, "tureta");
         tureta.setZeroPowerBehavior(DcMotorEx.ZeroPowerBehavior.BRAKE);
         tureta.setMode(DcMotorEx.RunMode.STOP_AND_RESET_ENCODER);
         tureta.setMode(DcMotorEx.RunMode.RUN_USING_ENCODER);
+    }
 
-        telemetry.addLine("TeleOp Ready");
+    /* ================= MATH ================= */
+
+    private double normalizeAngle(double angle) {
+        while (angle > 180) angle -= 360;
+        while (angle < -180) angle += 360;
+        return angle;
+    }
+
+    /* ================= TURRET AIM ================= */
+
+    private void updateTurretAim() {
+
+        Pose pose = pinpoint.getPose();
+        pX = pose.getX();
+        pY = pose.getY();
+
+        // Vector robot -> target (field frame)
+        double dx = xC - pX;
+        double dy = yC - pY;
+
+        // Absolute field angle to target
+        double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));
+
+        // Robot heading
+        double robotHeading = Math.toDegrees(pose.getHeading());
+
+        // Desired turret angle (robot frame, UNCLIPPED)
+        double targetTurretDeg = normalizeAngle(fieldAngle - robotHeading);
+
+        // Current turret angle
+        double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK;
+
+        currentTurretDeg=normalizeAngle(currentTurretDeg);
+        // Error
+        double error = normalizeAngle(targetTurretDeg - currentTurretDeg);
+
+        // P control
+        double power = error * kP;
+
+        // ====== LIMIT SAFETY (THIS FIXES THE JUMPING) ======
+
+        if (currentTurretDeg >= RIGHT_LIMIT && power > 0) {
+            power = 0;
+        }
+        if (currentTurretDeg <= LEFT_LIMIT && power < 0) {
+            power = 0;
+        }
+
+        power = Range.clip(power, -MAX_POWER, MAX_POWER);
+        tureta.setPower(power);
+
+        telemetry.addData("Target (raw)", "%.1f", targetTurretDeg);
+        telemetry.addData("Turret", "%.1f", currentTurretDeg);
+        telemetry.addData("Error", "%.1f", error);
+        telemetry.addData("Power", "%.2f", power);
+    }
+
+    /* ================= DRIVE ================= */
+
+    private void drive() {
+        double lx = gamepad1.left_stick_x;
+        double ly = -gamepad1.left_stick_y;
+        double rx = gamepad1.right_stick_x;
+
+        double fl = ly + lx + rx;
+        double bl = ly - lx + rx;
+        double fr = ly - lx - rx;
+        double br = ly + lx - rx;
+
+        double max = Math.max(Math.abs(fl),
+                Math.max(Math.abs(bl), Math.max(Math.abs(fr), Math.abs(br))));
+
+        if (max > 1.0) {
+            fl /= max; bl /= max; fr /= max; br /= max;
+        }
+
+        front_left.setPower(fl);
+        back_left.setPower(bl);
+        front_right.setPower(fr);
+        back_right.setPower(br);
+    }
+
+    /* ================= OPMODE ================= */
+
+    @Override
+    public void runOpMode() {
+
+        initWheels();
+        initLocalization();
+        initTurret();
+
+        telemetry.addLine("AutoAim Ready");
         telemetry.update();
 
         waitForStart();
 
         while (opModeIsActive()) {
-            updateLocalization();
-            updateTelemetry();
-            double lx = gamepad1.left_stick_x;
-            double ly = -gamepad1.left_stick_y;
-            double rx = gamepad1.right_stick_x;
 
-            double fl = ly + lx + rx;
-            double bl = ly - lx + rx;
-            double fr = ly - lx - rx;
-            double br = ly + lx - rx;
+            pinpoint.update();
+            drive();
+            updateTurretAim();
 
-            double max = Math.max(Math.abs(fl),
-                    Math.max(Math.abs(bl), Math.max(Math.abs(fr), Math.abs(br))));
-            if (max > 1.0) {
-                fl /= max; bl /= max; fr /= max; br /= max;
-            }
-
-            front_left.setPower(fl);
-            back_left.setPower(bl);
-            front_right.setPower(fr);
-            back_right.setPower(br);
-            distanceRobot();
-
-            double headingDeg = Math.toDegrees(pinpoint.getPose().getHeading());
-            Rotate(unghiRobot - headingDeg);
-
+            telemetry.addData("X", "%.1f", pX);
+            telemetry.addData("Y", "%.1f", pY);
+            telemetry.addData("Heading", "%.1f",
+                    Math.toDegrees(pinpoint.getPose().getHeading()));
 
             telemetry.update();
         }

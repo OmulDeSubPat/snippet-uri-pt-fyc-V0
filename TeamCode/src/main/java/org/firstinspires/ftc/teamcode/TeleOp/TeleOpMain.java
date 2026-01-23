@@ -88,10 +88,10 @@
         int ballsLoaded = 0;
 
         static final double FLYWHEEL_TICKS_PER_REV = 384.5;
-        static final double TARGET_RPM = 180;
+        static final double TARGET_RPM = 200;
 
-        double flywheelPowerHigh = 0.6;
-        double flywheelPowerLow = 0.5;
+        double flywheelPowerHigh = 0.65;
+        double flywheelPowerLow = 0.55;
 
         double flywheelTolerance = 20; // RPM
 
@@ -341,7 +341,7 @@
             if (Color2 != 0) detectedBalls++;
             if (Color3 != 0) detectedBalls++;
 
-            if (Color1!=0 && spinnerTimeout.milliseconds() >= 500) {
+            if (Color1!=0 && spinnerTimeout.milliseconds() >= 100) {
 
                 switch (detectedBalls) {
                     case 1:
@@ -415,7 +415,7 @@
             final int EJECTOR_UP_DELAY = 300;
             final int EJECTOR_DOWN_DELAY = 300;
             final int SPINNER_SLOT_CHANGE_DELAY = 300;
-            final int INITIAL_DELAY = 1200;
+            final int INITIAL_DELAY = 200;
 
             slots[0] = Color1;
             slots[1] = Color2;

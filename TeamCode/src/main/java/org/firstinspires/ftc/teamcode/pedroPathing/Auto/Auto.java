@@ -26,7 +26,6 @@ public class Auto extends OpMode {
 
     Servo ejector;
 
-    static final double TICKS_PER_REV = 384.5;
 
     @Override
     public void init() {
@@ -63,14 +62,14 @@ public class Auto extends OpMode {
 
         switch (state) {
 
-            case 0: // WAIT 29 SECONDS
+            case 0:
                 if (timer.seconds() >= 29.0) {
                     timer.reset();
                     state = 1;
                 }
                 break;
 
-            case 1: // DRIVE FORWARD
+            case 1:
                 setDrivePower(0.4);
                 break;
         }

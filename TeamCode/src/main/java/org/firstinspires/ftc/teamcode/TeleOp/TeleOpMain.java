@@ -242,9 +242,9 @@
 
 
         private void SetWheelsPower() {
-            double left_x = gamepad1.left_stick_x;
-            double left_y = -gamepad1.left_stick_y; // forward is negative
-            double right_x = gamepad1.right_stick_x;
+            double left_x = gamepad2.left_stick_x;
+            double left_y = -gamepad2.left_stick_y; // forward is negative
+            double right_x = gamepad2.right_stick_x;
 
             double front_left_pw = left_y + left_x + right_x;
             double back_left_pw = left_y - left_x + right_x;
@@ -372,6 +372,14 @@
         private boolean spinnerFull() {
             if (Color1 != 0 && Color2 != 0 && Color3 != 0) return true;
             else return false;
+        }
+
+        private void resetTureta()
+        {
+            if (gamepad2.touchpadWasPressed())
+            {
+                startPose = new Pose(8, 8, Math.toRadians(270));
+            }
         }
 
         private double getFlywheelRPM() {
@@ -609,6 +617,7 @@
                     if (outtakeMode) {
                         runOuttake();
                     }
+                    resetTureta();
                     idle();
                 }
                 //ETC

@@ -13,16 +13,20 @@ import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 @TeleOp(name = "testodo")
 public class TeleopMain1 extends LinearOpMode {
 
-    // Motors
+    /* ================= CONSTANTS ================= */
+    private static final double INCH_TO_CM = 2.54;
+
+    /* ================= MOTORS ================= */
     private DcMotor front_left;
     private DcMotor front_right;
     private DcMotor back_left;
     private DcMotor back_right;
 
-    // Localization
+    /* ================= LOCALIZATION ================= */
     private PinpointLocalizer pinpoint;
-    private double pX = 0;
-    private double pY = 0;
+    private double pX_cm = 0;
+    private double pY_cm = 0;
+    private double headingDeg = 0;
 
     /* ================= INIT ================= */
 
@@ -78,16 +82,21 @@ public class TeleopMain1 extends LinearOpMode {
     private void updateLocalization() {
         pinpoint.update();
         Pose pose = pinpoint.getPose();
-        pX = pose.getX();
-        pY = pose.getY();
+
+        // Convert inches -> cm
+        pX_cm = pose.getX() * INCH_TO_CM;
+        pY_cm = pose.getY() * INCH_TO_CM;
+
+        // Convert radians -> degrees
+        headingDeg = Math.toDegrees(pose.getHeading());
     }
 
     /* ================= TELEMETRY ================= */
 
     private void updateTelemetry() {
-        telemetry.addData("X", "%.2f", pX);
-        telemetry.addData("Y", "%.2f", pY);
-        telemetry.addData("Heading (rad)", "%.2f", pinpoint.getPose().getHeading());
+        telemetry.addData("X (cm)", "%.2f", pX_cm);
+        telemetry.addData("Y (cm)", "%.2f", pY_cm);
+        telemetry.addData("Heading (deg)", "%.2f", headingDeg);
     }
 
     /* ================= OPMODE ================= */

@@ -29,7 +29,7 @@ public class PIDtunner extends LinearOpMode {
     @Override
     public void runOpMode() {
 
-        spinner = hardwareMap.get(DcMotorEx.class, "spinner");
+        spinner = hardwareMap.get(DcMotorEx.class, "tureta");
 
         spinner.setDirection(DcMotorSimple.Direction.FORWARD);
         spinner.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -41,7 +41,6 @@ public class PIDtunner extends LinearOpMode {
         if (isStopRequested()) return;
 
         int targetTicks = 0;
-
         while (opModeIsActive()) {
 
             // Target positions
@@ -49,7 +48,7 @@ public class PIDtunner extends LinearOpMode {
                 targetTicks = (int)(60 * TICKS_PER_DEGREE);
             }
             if (gamepad1.circleWasPressed()) {
-                targetTicks = (int)(30 * TICKS_PER_DEGREE);
+                targetTicks = (int)(10 * TICKS_PER_DEGREE);
             }
             if (gamepad1.yWasPressed()) {
                 targetTicks = 0;
@@ -86,13 +85,14 @@ public class PIDtunner extends LinearOpMode {
             lastError = error;
 
             double pidOutput = error * P + integralSum * I + derivative * D;
-            pidOutput = Math.max(-1, Math.min(1, pidOutput));
+            pidOutput = Math.max(-0.1, Math.min(0.1, pidOutput));
 
             spinner.setPower(pidOutput);
 
 
             telemetry.addData("Target (deg)", targetTicks / TICKS_PER_DEGREE);
-            telemetry.addData("Current (deg)", (currentPos / TICKS_PER_DEGREE)%360);
+           // telemetry.addData("Current (deg)", (currentPos / TICKS_PER_DEGREE)%360);
+            telemetry.addData("Current (deg)", (spinner.getCurrentPosition()));
             telemetry.addData("Error", error);
             telemetry.addData("P", P);
             telemetry.addData("D", D);

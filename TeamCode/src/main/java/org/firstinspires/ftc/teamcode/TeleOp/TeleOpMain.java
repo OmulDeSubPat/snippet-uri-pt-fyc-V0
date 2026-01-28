@@ -75,6 +75,7 @@
         boolean outtakeMode = false;
         private ElapsedTime spinnerTimeout = new ElapsedTime();
         private ElapsedTime outtakeTimeout = new ElapsedTime();
+        private ElapsedTime spinnerMiscareTimer = new ElapsedTime();
         double ejectorDown = 0.285;
         double ejectorUp = 0.005;
         final double[] slotPositionsIntake = {0,0.19,0.38};
@@ -118,6 +119,7 @@
         // Example target (field coordinates)
         private double xC = 0;
         private double yC = 144;
+        private boolean spinnerSeMisca=false;
 
 
         private void initLocalization() {
@@ -173,7 +175,7 @@
 
             // Robot heading
             double robotHeading = Math.toDegrees(pose.getHeading());
-            double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK_TURETS-183.0;
+            double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK_TURETS-180.0;
             double targetTurretDeg = normalizeAngle(fieldAngle - robotHeading);
             // Desired turret angle (robot frame, UNCLIPPED)
             if(Math.abs(targetTurretDeg) < RIGHT_LIMIT){
@@ -235,9 +237,6 @@
             colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
             colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
             colorsensorSLot3 = hardwareMap.colorSensor.get("Color3");
-            pinpoint = new PinpointLocalizer(hardwareMap, Constants.localizerConstants);
-            Pose startPos = new Pose(0, 0, 0);
-            pinpoint.setStartPose(startPos);
         }
 
 
@@ -346,8 +345,16 @@
                 flywheel.setPower(0);
             }
         }
-
-
+/*
+        private void spinnerMoving()
+        {
+            spinnerMiscareTimer.reset();
+            if (spinnerMiscareTimer.milliseconds() <= 200) {
+                spinnerSeMisca=true;
+            }
+            else spinnerSeMisca=false;
+        }
+*/
         private void servoLogic() {
             if (gamepad1.optionsWasReleased()) {
                 ejector.setPosition(0.285);

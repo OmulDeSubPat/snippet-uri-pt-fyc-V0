@@ -35,8 +35,7 @@ public class testLL extends OpMode {
             telemetry.addData("Target Area", llResult.getTa());
             telemetry.addData("BotPose", botpose.toString());
             telemetry.addData("Yaw", botpose.getOrientation().getYaw());
-            telemetry.addData("Has Botpose", llResult.getBotpose_MT2());
-
         }
     }
 }
+

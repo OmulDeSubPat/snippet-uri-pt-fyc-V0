@@ -11,7 +11,7 @@ import com.pedropathing.geometry.Pose;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @TeleOp(name = "testodo")
-public class TeleopMain1 extends LinearOpMode {
+public class testodo extends LinearOpMode {
 
     /* ================= CONSTANTS ================= */
     private static final double INCH_TO_CM = 2.54;

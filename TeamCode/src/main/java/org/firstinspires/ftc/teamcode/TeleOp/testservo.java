@@ -24,7 +24,7 @@ public class testservo extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        ejectorServo = hardwareMap.get(Servo.class, "ejector");
+        ejectorServo = hardwareMap.get(Servo.class, "unghituretaoy");
         flywheel = hardwareMap.get(DcMotor.class,"flywheel");
 
         // Reverse servo if needed

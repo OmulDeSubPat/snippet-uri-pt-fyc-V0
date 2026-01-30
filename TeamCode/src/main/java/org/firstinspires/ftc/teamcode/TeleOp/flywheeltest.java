@@ -19,6 +19,7 @@ public class flywheeltest extends LinearOpMode {
     static final double kI_v = 0.0;
     static final double kD_v = 0.0;
     static final double kF_v = 14.0;
+    Servo trajectoryAngleModifier;
 
     DcMotorEx flywheel;
     Servo ejector;
@@ -37,6 +38,8 @@ public class flywheeltest extends LinearOpMode {
 
         // Apply PIDF coefficients
         flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+        trajectoryAngleModifier = hardwareMap.get(Servo.class, "unghituretaoy");
+        trajectoryAngleModifier.setPosition(0.65);
 
         telemetry.addLine("Flywheel Full Hold Initialized");
         telemetry.update();
@@ -55,14 +58,11 @@ public class flywheeltest extends LinearOpMode {
             {
                 TARGET_RPM-=100;
             }
-            if (gamepad1.dpadDownWasReleased())
-            {
-                ejector.setPosition(0.19);
-            }
             if (gamepad1.dpadUpWasPressed())
             {
                 ejector.setPosition(0.02);
             }
+            else ejector.setPosition(0.19);
             // Telemetry to monitor RPM
             double currentRPM = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
             telemetry.addData("Flywheel RPM", currentRPM);

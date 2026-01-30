@@ -86,6 +86,7 @@ public class autotent extends OpMode {
     DcMotorEx flywheel;
     Servo spinnerClose, spinnerFar, ejector;
     ColorSensor slot1, slot2, slot3;
+    Servo trajectoryAngleModifier;
 
     /* ================= FLYWHEEL ================= */
     final double TICKS_PER_REV = 28;
@@ -129,6 +130,7 @@ public class autotent extends OpMode {
         spinnerFar = hardwareMap.get(Servo.class, "SpinnerFar");
         ejector = hardwareMap.get(Servo.class, "ejector");
 
+        trajectoryAngleModifier = hardwareMap.get(Servo.class,"unghituretaoy");
         slot1 = hardwareMap.colorSensor.get("Color1");
         slot2 = hardwareMap.colorSensor.get("Color2");
         slot3 = hardwareMap.colorSensor.get("Color3");
@@ -140,6 +142,8 @@ public class autotent extends OpMode {
         outtakeTimeout.reset();
         spinnerFar.setPosition(0);
         spinnerClose.setPosition(0);
+
+        trajectoryAngleModifier.setPosition(0);
     }
 
     private double getHue(int r, int g, int b) {

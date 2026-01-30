@@ -73,8 +73,8 @@ public class TeleOpfaneUrsu extends LinearOpMode {
     boolean outtakeMode = false;
     private ElapsedTime outtakeTimeout = new ElapsedTime();
     private ElapsedTime intakeTimeout = new ElapsedTime();
-    final double ejectorDown = 0.19;
-    final double ejectorUp = 0.02;
+    final double ejectorDown = 0.135;
+    final double ejectorUp = 0.0;
     double t_intake = 0;
     final double[] slotPositionsIntake = {0,0.19,0.38,0.085};
     PinpointLocalizer pinpoint;

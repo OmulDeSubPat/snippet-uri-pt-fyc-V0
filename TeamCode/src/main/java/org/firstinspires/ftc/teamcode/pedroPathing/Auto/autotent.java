@@ -16,12 +16,14 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 
-@Autonomous(name = "FullAutoUpdated", group = "Autonomous")
+@Autonomous(name = "&testeazaastaboule", group = "Autonomous")
 @Configurable
 public class autotent extends OpMode {
     // ===== TELEOP-GRADE COLOR SYSTEM =====
     int[] last5Sensor1 = new int[5];
     int idx1 = 0;
+    double stepDeadline = 0;
+
 
     int[] logicalSlots = new int[3];   // what is actually in the spinner
     int lastStableIntakeColor = 0;
@@ -66,7 +68,7 @@ public class autotent extends OpMode {
     /* ================= DELAY ================= */
     ElapsedTime autoDelay = new ElapsedTime();
     boolean waiting = false;
-    final double COMMAND_DELAY = 2; // seconds
+    final double COMMAND_DELAY = 2.5; // seconds
 
     private boolean delayDone() {
         if(!waiting){
@@ -89,11 +91,18 @@ public class autotent extends OpMode {
     Servo trajectoryAngleModifier;
 
     /* ================= FLYWHEEL ================= */
-    final double TICKS_PER_REV = 28;
-    final double TARGET_RPM = 4000;
-    final double HIGH_PWR = 0.8;
-    final double LOW_PWR = 0.55;
-    final double RPM_TOL = 30;
+    /* ================= FLYWHEEL (PIDF VELOCITY) ================= */
+    static final double FLYWHEEL_TICKS_PER_REV = 28.0;
+
+    public static double TARGET_RPM = 3800;
+
+    public static double kP_v = 10.0;
+    public static final double kI_v = 0.0;
+    public static final double kD_v = 0.0;
+    public static double kF_v = 13.0;
+
+    double targetTPS;
+
 
     /* ================= SPINNER ================= */
     final double[] slotPositions = {0, 0.19, 0.38, 0.085};
@@ -107,11 +116,22 @@ public class autotent extends OpMode {
 
     /* ================= OUTTAKE ================= */
     ElapsedTime outtakeTimeout = new ElapsedTime();
-    int outtakeStep = 0;
     boolean outtaking = false;
-    final double ejectUp = 0.02;
-    final double ejectDown = 0.19;
-    double prev_t_outtake = 0.0;
+
+    final double ejectUp = 0.0;//0.02
+    final double ejectDown = 0.135;//0.18
+
+    // ms-based timing (same as TeleOp)
+    final int EJECTOR_UP_DELAY = 700;
+    final int EJECTOR_DOWN_DELAY = 800;
+    final int SPINNER_SLOT_CHANGE_DELAY = 500;
+    final int INITIAL_DELAY = 600;
+
+    double prev_t = 0;
+
+    boolean step1Done, step2Done, step3Done, step4Done, step5Done,
+            step6Done, step7Done, step8Done, step9Done, step10Done;
+
 
     /* ================= INIT ================= */
     @Override
@@ -124,6 +144,10 @@ public class autotent extends OpMode {
 
         intake = hardwareMap.get(DcMotor.class, "intake");
         flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
+        flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
 
         spinnerClose = hardwareMap.get(Servo.class, "SpinnerClose");
@@ -219,6 +243,7 @@ public class autotent extends OpMode {
                 }
                 break;
 
+
             case 10:
                 if(!outtaking && delayDone()){
                     intake.setPower(1);
@@ -252,6 +277,18 @@ public class autotent extends OpMode {
         panelsTelemetry.debug("Path State", pathState);
         panelsTelemetry.update(telemetry);
     }
+    private void startOuttake(){
+        outtaking = true;
+        outtakeTimeout.reset();
+
+        stepDeadline = 100;   // first event at t = 100ms
+
+        step1Done = step2Done = step3Done = step4Done = step5Done =
+                step6Done = step7Done = step8Done = step9Done = step10Done = false;
+    }
+
+
+
 
     /* ================= PATH FSM ================= */
     public void autonomousPathUpdate() {
@@ -283,10 +320,18 @@ public class autotent extends OpMode {
 
     /* ================= MECHANISMS ================= */
     private void updateFlywheel() {
-        double rpm = flywheel.getVelocity() / TICKS_PER_REV * 60;
-        if(rpm < TARGET_RPM - RPM_TOL) flywheel.setPower(HIGH_PWR);
-        else flywheel.setPower(LOW_PWR);
+        // Allow live tuning from dashboard
+        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+
+        targetTPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
+        flywheel.setVelocity(targetTPS);
+
+        double currentRPM = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
+
+        panelsTelemetry.debug("Flywheel RPM", currentRPM);
+        panelsTelemetry.debug("Flywheel Target", TARGET_RPM);
     }
+
 
     private void updateColors() {
         c1 = smooth(slot1, last1, i1++ % 5);
@@ -361,102 +406,78 @@ public class autotent extends OpMode {
 
 
     /* ================= OUTTAKE ================= */
-    private void startOuttake(){
-        outtaking = true;
-        outtakeStep = 0;
-        outtakeTimer.reset();
-        stepStart = 0;
-    }
-
     private void runOuttake() {
-        if(!outtaking) return;
+        if (!outtaking) return;
 
-        double t = outtakeTimer.seconds();
+        double t = outtakeTimeout.milliseconds();
 
-        switch(outtakeStep) {
-            case 0:
-                spinnerClose.setPosition(0.065);
-                spinnerFar.setPosition(0.065);
-                stepStart = t;
-                outtakeStep++;
-                break;
+        if (!step1Done && t >= stepDeadline) {
+            spinnerClose.setPosition(0.084);
+            spinnerFar.setPosition(0.084);
+            step1Done = true;
+            stepDeadline += INITIAL_DELAY;
+        }
 
-            case 1:
-                if(t - stepStart > 1){
-                    ejector.setPosition(ejectUp);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step1Done && !step2Done && t >= stepDeadline) {
+            ejector.setPosition(ejectUp);
+            step2Done = true;
+            stepDeadline += EJECTOR_UP_DELAY;
+        }
 
-            case 2:
-                if(t - stepStart > 1){
-                    ejector.setPosition(ejectDown);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step2Done && !step3Done && t >= stepDeadline) {
+            ejector.setPosition(ejectDown);
+            step3Done = true;
+            stepDeadline += EJECTOR_DOWN_DELAY;
+        }
 
-            case 3:
-                if(t - stepStart > 1){
-                    spinnerClose.setPosition(0.26);
-                    spinnerFar.setPosition(0.26);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step3Done && !step4Done && t >= stepDeadline) {
+            spinnerClose.setPosition(0.27);
+            spinnerFar.setPosition(0.27);
+            step4Done = true;
+            stepDeadline += SPINNER_SLOT_CHANGE_DELAY;
+        }
 
-            case 4:
-                if(t - stepStart > 1){
-                    ejector.setPosition(ejectUp);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step4Done && !step5Done && t >= stepDeadline) {
+            ejector.setPosition(ejectUp);
+            step5Done = true;
+            stepDeadline += EJECTOR_UP_DELAY;
+        }
 
-            case 5:
-                if(t - stepStart > 1){
-                    ejector.setPosition(ejectDown);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step5Done && !step6Done && t >= stepDeadline) {
+            ejector.setPosition(ejectDown);
+            step6Done = true;
+            stepDeadline += EJECTOR_DOWN_DELAY;
+        }
 
-            case 6:
-                if(t - stepStart > 1){
-                    spinnerClose.setPosition(0.44);
-                    spinnerFar.setPosition(0.44);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step6Done && !step7Done && t >= stepDeadline) {
+            spinnerClose.setPosition(0.45);
+            spinnerFar.setPosition(0.45);
+            step7Done = true;
+            stepDeadline += SPINNER_SLOT_CHANGE_DELAY;
+        }
 
-            case 7:
-                if(t - stepStart > 1){
-                    ejector.setPosition(ejectUp);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step7Done && !step8Done && t >= stepDeadline) {
+            ejector.setPosition(ejectUp);
+            step8Done = true;
+            stepDeadline += EJECTOR_UP_DELAY;
+        }
 
-            case 8:
-                if(t - stepStart > 1){
-                    ejector.setPosition(ejectDown);
-                    stepStart = t;
-                    outtakeStep++;
-                }
-                break;
+        if (step8Done && !step9Done && t >= stepDeadline) {
+            ejector.setPosition(ejectDown);
+            step9Done = true;
+            stepDeadline += EJECTOR_DOWN_DELAY;
+        }
 
-            case 9:
-                if(t - stepStart > 1){
-                    spinnerClose.setPosition(0);
-                    spinnerFar.setPosition(0);
-                    outtaking = false;
-                    outtakeStep = 0;
-                }
-                break;
+        if (step9Done && !step10Done && t >= stepDeadline) {
+            spinnerClose.setPosition(0);
+            spinnerFar.setPosition(0);
+            intake.setPower(0);
+            outtaking = false;
+            step10Done = true;
         }
     }
+
+
 
 
 

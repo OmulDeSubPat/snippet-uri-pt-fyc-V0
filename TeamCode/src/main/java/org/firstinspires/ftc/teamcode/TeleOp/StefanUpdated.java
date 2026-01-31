@@ -100,16 +100,17 @@ public class StefanUpdated extends LinearOpMode {
     int ballsLoaded = 0;
 
     /* ===================== SPINDEXER OFFSETS / POSITIONS ===================== */
-    private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015;
-    private static final double SPINDEXER_INTAKE_OFFSET  = -0.01;
-    private static final double SPINNER_LAUNCH_POS       = 0.085;
+    private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015; // your updated value
+    private static final double SPINDEXER_INTAKE_OFFSET  = -0.01; // your old intake bias
+    private static final double SPINNER_LAUNCH_POS       = 0.085; // launch/prep position
 
+    // When full, we park at launch pos until shooting (outtake) finishes
     private boolean launchPrepActive = false;
 
     /* ===================== FLYWHEEL (REV VELOCITY CONTROL) ===================== */
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
     static final double TARGET_RPM = 2471.0;
-    static final double TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
+    static final double TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0; // ticks/sec
 
     static final double kP_v = 12.0;
     static final double kI_v = 0.0;
@@ -147,6 +148,7 @@ public class StefanUpdated extends LinearOpMode {
     /* ===================== LOGICAL INVENTORY ===================== */
     int[] logicalSlots = new int[3];
 
+    // ULTRA-FAST intake smoothing (3 samples, need 2)
     int[] lastNIntake = new int[3];
     int idxIntake = 0;
 
@@ -201,6 +203,40 @@ public class StefanUpdated extends LinearOpMode {
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+    }
+
+    private double normalizeAngle(double angle) {
+        while (angle > 180) angle -= 360;
+        while (angle < -180) angle += 360;
+        return angle;
+    }
+
+    private void updateTurretAim() {
+        Pose pose = pinpoint.getPose();
+        pX = pose.getX();
+        pY = pose.getY();
+
+        double dx = xC - pX;
+        double dy = yC - pY;
+
+        double fieldAngle = Math.toDegrees(Math.atan2(dy, dx));
+        double robotHeading = Math.toDegrees(pose.getHeading());
+        double currentTurretDeg = tureta.getCurrentPosition() * DEG_PER_TICK_TURETS - 180.0;
+
+        double targetTurretDeg = normalizeAngle(fieldAngle - robotHeading);
+
+        if (Math.abs(targetTurretDeg) < RIGHT_LIMIT || turetaDisabled) {
+            tureta.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+            tureta.setPower(0);
+            return;
+        }
+
+        currentTurretDeg = normalizeAngle(currentTurretDeg);
+        double error = normalizeAngle(targetTurretDeg - currentTurretDeg);
+
+        double power = error * kP;
+        power = Range.clip(power, -MAX_POWER, MAX_POWER);
+        tureta.setPower(power);
     }
 
     private void InitServo() {
@@ -263,10 +299,9 @@ public class StefanUpdated extends LinearOpMode {
         back_right.setPower(back_right_pw);
     }
 
-    /* ===================== COLOR / LOGIC (unchanged) ===================== */
     private double getHue(int r, int g, int b) {
         int max = Math.max(r, Math.max(g, b));
-        int min = Math.min(r, Math.max(g, b));
+        int min = Math.min(r, Math.min(g, b));
         if (max == min) return 0.0;
 
         double chroma = max - min;
@@ -355,6 +390,7 @@ public class StefanUpdated extends LinearOpMode {
         idxIntake = 0;
     }
 
+    // ULTRA-FAST intake smoothing: 3 samples, need 2
     private int processIntakeSensor(ColorSensor sensor) {
         int detected = smekerie1(sensor);
 
@@ -375,12 +411,15 @@ public class StefanUpdated extends LinearOpMode {
     }
 
     private void colorDrivenSpinnerLogicServos() {
+
         if (spinnerMoving) {
             if (System.currentTimeMillis() - servoMoveStartMs >= SERVO_MOVE_LOCK_MS) {
                 spinnerMoving = false;
                 detectionLocked = false;
                 lastStableIntakeColor = 0;
-            } else return;
+            } else {
+                return;
+            }
         }
 
         if (waitingForClear) {
@@ -395,7 +434,9 @@ public class StefanUpdated extends LinearOpMode {
         int intakeColor = processIntakeSensor(colorsensorSLot1);
 
         boolean newColorDetected = (intakeColor != 0 && lastStableIntakeColor == 0);
-        if (newColorDetected) lastStableIntakeColor = intakeColor;
+        if (newColorDetected) {
+            lastStableIntakeColor = intakeColor;
+        }
 
         if (newColorDetected && !colorPending && !detectionLocked) {
             colorStartTimeMs = System.currentTimeMillis();
@@ -403,6 +444,7 @@ public class StefanUpdated extends LinearOpMode {
         }
 
         if (colorPending && (System.currentTimeMillis() - colorStartTimeMs >= DETECT_DELAY_MS)) {
+
             logicalSlots[0] = intakeColor;
             rotateLogicalSlotsRight();
 
@@ -419,20 +461,21 @@ public class StefanUpdated extends LinearOpMode {
         }
     }
 
+    // When full -> park at launch position and STAY until outtake finishes
     private void autoLaunchPrepLogic() {
-        if (outtakeMode) return;
+        if (outtakeMode) return; // during outtake we let runOuttake own Posspinner
 
         if (intakeMode && isSpindexerFull()) {
             launchPrepActive = true;
         }
+
         if (launchPrepActive) {
-            Posspinner = SPINNER_LAUNCH_POS;
+            Posspinner = SPINNER_LAUNCH_POS; // hard hold
         }
     }
 
-    /* ===================== FLYWHEEL CONTROL MOVED TO GAMEPAD2 ===================== */
     private void flywheelLogic() {
-        if (gamepad2.shareWasPressed()) {
+        if (gamepad1.shareWasPressed()) {
             flywheelOn = !flywheelOn;
 
             if (flywheelOn) {
@@ -463,27 +506,26 @@ public class StefanUpdated extends LinearOpMode {
         telemetry.addData("Flywheel mode", kicking ? "KICK" : "HOLD");
     }
 
-    /* ===================== SERVO MANUAL OVERRIDES MOVED TO GAMEPAD2 ===================== */
     private void servoLogic() {
-        if (gamepad2.optionsWasReleased()) {
+        if (gamepad1.optionsWasReleased()) {
             ejector.setPosition(ejectorDown);
-        } else if (gamepad2.optionsWasPressed()) {
+        } else if (gamepad1.optionsWasPressed()) {
             ejector.setPosition(ejectorUp);
         }
 
-        if (gamepad2.touchpadWasPressed()) {
+        if (gamepad1.touchpadWasPressed()) {
             Posspinner = 0;
             slotIntakeIndex = 0;
         }
 
-        if (gamepad2.dpadRightWasPressed()) {
+        if (gamepad1.dpadRightWasPressed()) {
             slotIntakeIndex++;
             slotIntakeIndex = slotIntakeIndex % 3;
             Posspinner = slotPositionsIntake[slotIntakeIndex];
             rotateLogicalSlotsRight();
         }
 
-        if (gamepad2.dpadLeftWasPressed()) {
+        if (gamepad1.dpadLeftWasPressed()) {
             slotIntakeIndex--;
             if (slotIntakeIndex < 0) slotIntakeIndex = 2;
             Posspinner = slotPositionsIntake[slotIntakeIndex];
@@ -521,12 +563,13 @@ public class StefanUpdated extends LinearOpMode {
         final int EJECTOR_UP_DELAY = 300;
         final int EJECTOR_DOWN_DELAY = 170;
         final int SPINNER_SLOT_CHANGE_DELAY = 300;
-        final int INITIAL_DELAY = 400;
+        final int INITIAL_DELAY = 400;  // <-- lowered from 600 to 400
 
         slots[0] = logicalSlots[0];
         slots[1] = logicalSlots[1];
         slots[2] = logicalSlots[2];
 
+        // Clear logical inventory (we will immediately go back to intake and recount)
         logicalSlots[0] = 0;
         logicalSlots[1] = 0;
         logicalSlots[2] = 0;
@@ -595,12 +638,15 @@ public class StefanUpdated extends LinearOpMode {
             Posspinner = 0;
             step10Done = true;
 
+            // ===================== AUTO RESET TO INTAKE AFTER SHOOTING =====================
             outtakeMode = false;
 
+            // Go straight back to intake without needing B/circle again
             intakeMode = true;
             spinIntake = true;
             intake.setPower(-1);
 
+            // Reset indexing so it can recount cleanly
             slotIntakeIndex = 0;
             Posspinner = 0;
 
@@ -609,6 +655,7 @@ public class StefanUpdated extends LinearOpMode {
 
             ballsLoaded = 0;
             prev_t = 0;
+            // ============================================================================
         }
     }
 
@@ -636,25 +683,20 @@ public class StefanUpdated extends LinearOpMode {
             spinnerFar.setPosition(appliedSpinnerPos);
             spinnerCLose.setPosition(appliedSpinnerPos);
 
-            // ===== GAMEPAD2 CONTROLS (mechanisms) =====
-            servoLogic();      // moved to gamepad2 inside
-            flywheelLogic();   // moved to gamepad2 inside
-
-            // ===== GAMEPAD1 CONTROLS (chassis only) =====
+            servoLogic();
             SetWheelsPower();
+            flywheelLogic();
 
             pinpoint.update();
             // updateTurretAim();
 
-            // Intake manual jog moved to GAMEPAD2
-            if (gamepad2.crossWasPressed() && !gamepad2.crossWasReleased()) {
+            if (gamepad1.crossWasPressed() && !gamepad1.crossWasReleased()) {
                 intake.setPower(1);
-            } else if (gamepad2.crossWasReleased()) {
+            } else if (gamepad1.crossWasReleased()) {
                 intake.setPower(spinIntake ? -1 : 0);
             }
 
-            // Toggle intake mode moved to GAMEPAD2
-            if (gamepad2.circleWasPressed()) {
+            if (gamepad1.circleWasPressed()) {
                 outtakeMode = false;
                 intakeMode = true;
 
@@ -678,21 +720,22 @@ public class StefanUpdated extends LinearOpMode {
                 updateCulori();
                 colorDrivenSpinnerLogicServos();
             } else if (intakeMode && launchPrepActive) {
+                // still update debug colors if you want
                 updateCulori();
             }
 
-            // Reset localization moved to GAMEPAD2
-            if (gamepad2.psWasPressed()) {
+            if (gamepad1.psWasPressed()) {
                 resetLocalization();
             }
 
-            // Start outtake moved to GAMEPAD2
-            if (gamepad2.right_trigger > 0.8) {
+            if (gamepad1.right_trigger > 0.8) {
                 intakeMode = false;
                 outtakeMode = true;
                 intake.setPower(0);
                 outtakeTimeout.reset();
 
+                // once outtake starts, we don't want launch-hold logic to overwrite Posspinner
+                // (it will be cleared at the end of the sequence)
                 step1Done = false;
                 step2Done = false;
                 step3Done = false;
@@ -707,10 +750,9 @@ public class StefanUpdated extends LinearOpMode {
                 prev_t = 0;
             }
 
-            // Turret disable moved to GAMEPAD2
-            if (gamepad2.yWasPressed() && !gamepad2.yWasReleased()) {
+            if (gamepad1.yWasPressed() && !gamepad1.yWasReleased()) {
                 turetaDisabled = true;
-            } else if (gamepad2.yWasReleased()) {
+            } else if (gamepad1.yWasReleased()) {
                 turetaDisabled = false;
                 tureta.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             }

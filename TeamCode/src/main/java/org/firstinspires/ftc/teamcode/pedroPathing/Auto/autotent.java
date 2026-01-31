@@ -487,21 +487,21 @@ public class autotent extends OpMode {
 
         public Paths(Follower follower){
             Path1 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(64.262, 8.000), new Pose(60.000, 60.000)))
+                    .addPath(new BezierLine(new Pose(64.262, 8.000), new Pose(56.327, 60.00)))
                     .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180))
                     .build();
 
             Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(60.000, 60.000), new Pose(36.492, 60.590)))
+                    .addPath(new BezierLine(new Pose(56.327, 60.000), new Pose(8.085, 59.658)))
                     .setTangentHeadingInterpolation()
                     .build();
 
             Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(36.492, 60.590), new Pose(28.623, 60.508)))
-                    .setTangentHeadingInterpolation()
+                    .addPath(new BezierLine(new Pose(8.085, 59.658), new Pose(57.935, 5.904)))
+                    .setConstantHeadingInterpolation(110)
                     .build();
 
-            Path4 = follower.pathBuilder()
+          /*  Path4 = follower.pathBuilder()
                     .addPath(new BezierLine(new Pose(28.623, 60.508), new Pose(10.787, 60.148)))
                     .setTangentHeadingInterpolation()
                     .build();
@@ -509,7 +509,7 @@ public class autotent extends OpMode {
             Path5 = follower.pathBuilder()
                     .addPath(new BezierLine(new Pose(10.787, 60.148), new Pose(64.623, 8.443)))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(90))
-                    .build();
+                    .build();*/
         }
     }
 }

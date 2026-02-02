@@ -90,6 +90,7 @@ public class flywheeltestV2 extends LinearOpMode {
     final double ejectorDown = 0.214;
     final double ejectorUp = 0.03;
 
+    double rpm=0;
     final double[] slotPositionsIntake = {0, 0.19, 0.38};
 
     PinpointLocalizer pinpoint;
@@ -503,7 +504,7 @@ public class flywheeltestV2 extends LinearOpMode {
             flywheel.setVelocity(TARGET_TPS);
         }
 
-        double rpm = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
+        rpm = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
         telemetry.addData("Flywheel RPM", rpm);
         telemetry.addData("Flywheel mode", kicking ? "KICK" : "HOLD");
     }
@@ -592,7 +593,7 @@ public class flywheeltestV2 extends LinearOpMode {
             prev_t = 10;
         }
 
-        if (t >= prev_t + INITIAL_DELAY && !step2Done && step1Done) {
+        if (t >= prev_t + INITIAL_DELAY && !step2Done && step1Done && rpm<=TARGET_RPM+100 && rpm>=TARGET_RPM-100) {
             ejector.setPosition(ejectorUp);
             step2Done = true;
             prev_t += INITIAL_DELAY;
@@ -610,7 +611,7 @@ public class flywheeltestV2 extends LinearOpMode {
             prev_t += EJECTOR_DOWN_DELAY;
         }
 
-        if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step5Done && step4Done) {
+        if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step5Done && step4Done&& rpm<=TARGET_RPM+100 && rpm>=TARGET_RPM-100) {
             ejector.setPosition(ejectorUp);
             step5Done = true;
             prev_t += SPINNER_SLOT_CHANGE_DELAY;
@@ -628,7 +629,7 @@ public class flywheeltestV2 extends LinearOpMode {
             prev_t += EJECTOR_DOWN_DELAY;
         }
 
-        if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step8Done && step7Done) {
+        if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step8Done && step7Done&& rpm<=TARGET_RPM+100 && rpm>=TARGET_RPM-100) {
             ejector.setPosition(ejectorUp);
             step8Done = true;
             prev_t += SPINNER_SLOT_CHANGE_DELAY;

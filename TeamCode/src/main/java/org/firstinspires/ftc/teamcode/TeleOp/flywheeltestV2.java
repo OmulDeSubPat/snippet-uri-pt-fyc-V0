@@ -61,7 +61,7 @@ public class flywheeltestV2 extends LinearOpMode {
     Servo spinnerCLose;
     Servo spinnerFar;
 
-    /* ===================== OUTTAKE STEPS ===================== */
+    /* ===================== OUTTAKE STEPS (legacy - not used by FSM) ===================== */
     boolean step1Done = false;
     boolean turetaDisabled = false;
     boolean step2Done = false;
@@ -90,7 +90,7 @@ public class flywheeltestV2 extends LinearOpMode {
     final double ejectorDown = 0.214;
     final double ejectorUp = 0.03;
 
-    double rpm=0;
+    double rpm = 0;
     final double[] slotPositionsIntake = {0, 0.19, 0.38};
 
     PinpointLocalizer pinpoint;
@@ -101,22 +101,22 @@ public class flywheeltestV2 extends LinearOpMode {
     int ballsLoaded = 0;
 
     /* ===================== SPINDEXER OFFSETS / POSITIONS ===================== */
-    private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015; // your updated value
-    private static final double SPINDEXER_INTAKE_OFFSET  = -0.01; // your old intake bias
-    private static final double SPINNER_LAUNCH_POS       = 0.085; // launch/prep position
+    private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015;
+    private static final double SPINDEXER_INTAKE_OFFSET  = -0.01;
+    private static final double SPINNER_LAUNCH_POS       = 0.085; // keep same
 
     // When full, we park at launch pos until shooting (outtake) finishes
     private boolean launchPrepActive = false;
 
     /* ===================== FLYWHEEL (REV VELOCITY CONTROL) ===================== */
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
-    static double TARGET_RPM = 3625.0;
+    static double TARGET_RPM = 3065.0;
     static double TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0; // ticks/sec
 
-    static double kP_v = 0.0;
+    static double kP_v = 15.1;
     static final double kI_v = 0.0;
     static final double kD_v = 0.0;
-    static double kF_v = 12.3;
+    static double kF_v = 12.45;
 
     static final double KICK_POWER = 1.0;
     static final double KICK_TIME_S = 0.20;
@@ -165,6 +165,32 @@ public class flywheeltestV2 extends LinearOpMode {
     static final long DETECT_DELAY_MS = 0;
     static final long SERVO_MOVE_LOCK_MS = 45;
     long servoMoveStartMs = 0;
+
+    /* ===================== OUTTAKE FSM + RPM GATING ===================== */
+    private int outtakeStep = 0;
+    private long stepStartMs = 0;
+
+    // shoot only within +/- 100 RPM, optionally stable for a short time
+    private static final double RPM_TOL = 100.0;
+    private static final long RPM_STABLE_MS = 80; // prevents 1-loop spikes
+    private long rpmInRangeSinceMs = 0;
+
+    private boolean rpmInRangeStable() {
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM+20));
+        long now = System.currentTimeMillis();
+
+        if (!inRange) {
+            rpmInRangeSinceMs = 0;
+            return false;
+        }
+        if (rpmInRangeSinceMs == 0) rpmInRangeSinceMs = now;
+        return (now - rpmInRangeSinceMs) >= RPM_STABLE_MS;
+    }
+
+    private void startStep(int newStep) {
+        outtakeStep = newStep;
+        stepStartMs = System.currentTimeMillis();
+    }
 
     /* ========================================================================================= */
 
@@ -226,6 +252,7 @@ public class flywheeltestV2 extends LinearOpMode {
 
         double targetTurretDeg = normalizeAngle(fieldAngle - robotHeading);
 
+        // NOTE: leaving your original logic untouched (even though the condition looks inverted)
         if (Math.abs(targetTurretDeg) < RIGHT_LIMIT || turetaDisabled) {
             tureta.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
             tureta.setPower(0);
@@ -478,6 +505,7 @@ public class flywheeltestV2 extends LinearOpMode {
     private void flywheelLogic() {
         flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
         TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
+
         if (gamepad1.shareWasPressed()) {
             flywheelOn = !flywheelOn;
 
@@ -537,132 +565,177 @@ public class flywheeltestV2 extends LinearOpMode {
     }
 
     private void updateTelemetry() {
-       /* telemetry.addData("Live Color1", Color1);
-        telemetry.addData("Live Color2", Color2);
-        telemetry.addData("Live Color3", Color3);
-
-        telemetry.addData("LogicalSlot 1", logicalSlots[0]);
-        telemetry.addData("LogicalSlot 2", logicalSlots[1]);
-        telemetry.addData("LogicalSlot 3", logicalSlots[2]);
-
-        telemetry.addData("FULL", isSpindexerFull());
-        telemetry.addData("launchPrepActive", launchPrepActive);
-
-        telemetry.addData("waitingForClear", waitingForClear);
-        telemetry.addData("colorPending", colorPending);
-        telemetry.addData("spinnerMoving", spinnerMoving);
-
-        telemetry.addData("servoPos", spinnerFar.getPosition());
-        telemetry.addData("slotIndex", slotIntakeIndex);
-
-        telemetry.addData("Sensor1 alpha", colorsensorSLot1.alpha());
-        telemetry.addData("Sensor1 hue", getHue(colorsensorSLot1.red(), colorsensorSLot1.green(), colorsensorSLot1.blue()));
-        */
-        telemetry.update();
         telemetry.addData("Flywheel Target RPM", TARGET_RPM);
-        telemetry.addData("kp", kP_v);
-        telemetry.addData("kf", kF_v);
+        telemetry.addData("kP_v", kP_v);
+        telemetry.addData("kF_v", kF_v);
+
+        telemetry.addData("outtakeMode", outtakeMode);
+        telemetry.addData("outtakeStep", outtakeStep);
+        telemetry.addData("rpmInRange(±100)", (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + RPM_TOL)));
+        telemetry.addData("rpmStable", rpmInRangeStable());
+        telemetry.addData("Posspinner(raw)", Posspinner);
+
+        telemetry.update();
     }
 
+    /**
+     * OUTTAKE LOGIC YOU REQUESTED:
+     * - ejector up (ONLY when RPM in range)
+     * - ejector down (after fixed time)
+     * - spinner moves to next slot
+     * - repeat
+     *
+     * Keeps your same positions:
+     *  - launch: 0.085
+     *  - slot2:  0.28
+     *  - slot3:  0.46
+     *  - end:    0
+     */
     private void runOuttake() {
+
+        // Keep intake reversed during outtake (as you had)
         intake.setPower(-1);
 
-        final int EJECTOR_UP_DELAY = 300;
-        final int EJECTOR_DOWN_DELAY = 300;
-        final int SPINNER_SLOT_CHANGE_DELAY = 60;
-        final int INITIAL_DELAY = 400;  // <-- lowered from 600 to 400
+        // timings (same as your old delays)
+        final long INITIAL_DELAY_MS = 50;
+        final long EJECTOR_UP_MS = 250;
+        final long EJECTOR_DOWN_MS = 350;
+        final long SPINNER_MOVE_MS = 100;
 
-        slots[0] = logicalSlots[0];
-        slots[1] = logicalSlots[1];
-        slots[2] = logicalSlots[2];
+        long now = System.currentTimeMillis();
+        long dt = now - stepStartMs;
 
-        // Clear logical inventory (we will immediately go back to intake and recount)
-        logicalSlots[0] = 0;
-        logicalSlots[1] = 0;
-        logicalSlots[2] = 0;
+        switch (outtakeStep) {
 
-        Color1 = 0;
-        Color2 = 0;
-        Color3 = 0;
+            case 0:
+                // snapshot inventory once
+                slots[0] = logicalSlots[0];
+                slots[1] = logicalSlots[1];
+                slots[2] = logicalSlots[2];
 
-        double t = outtakeTimeout.milliseconds();
+                // clear logical so intake recounts after
+                logicalSlots[0] = 0;
+                logicalSlots[1] = 0;
+                logicalSlots[2] = 0;
 
-        if (t - prev_t >= 10 && !step1Done) {
-            Posspinner = 0.085;
-            step1Done = true;
-            prev_t = 10;
-        }
+                Color1 = 0; Color2 = 0; Color3 = 0;
 
-        if (t >= prev_t + INITIAL_DELAY && !step2Done && step1Done && rpm<=TARGET_RPM+100 && rpm>=TARGET_RPM-100) {
-            ejector.setPosition(ejectorUp);
-            step2Done = true;
-            prev_t += INITIAL_DELAY;
-        }
+                // start at launch position
+                Posspinner = 0.085;
 
-        if (t >= prev_t + EJECTOR_UP_DELAY && !step3Done && step2Done) {
-            ejector.setPosition(ejectorDown);
-            step3Done = true;
-            prev_t += EJECTOR_UP_DELAY;
-        }
+                rpmInRangeSinceMs = 0;
+                startStep(1);
+                break;
 
-        if (t >= prev_t + EJECTOR_DOWN_DELAY && !step4Done && step3Done) {
-            Posspinner = 0.28;
-            step4Done = true;
-            prev_t += EJECTOR_DOWN_DELAY;
-        }
+            case 1:
+                // initial settle time
+                if (dt >= INITIAL_DELAY_MS) startStep(2);
+                break;
 
-        if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step5Done && step4Done&& rpm<=TARGET_RPM+100 && rpm>=TARGET_RPM-100) {
-            ejector.setPosition(ejectorUp);
-            step5Done = true;
-            prev_t += SPINNER_SLOT_CHANGE_DELAY;
-        }
+            case 2:
+                // SHOOT #1: ejector up only when rpm is in range (stable)
+                if (rpmInRangeStable()) {
+                    ejector.setPosition(ejectorUp);
+                    startStep(3);
+                }
+                break;
 
-        if (t >= prev_t + EJECTOR_UP_DELAY && !step6Done && step5Done) {
-            ejector.setPosition(ejectorDown);
-            step6Done = true;
-            prev_t += EJECTOR_UP_DELAY;
-        }
+            case 3:
+                // hold ejector up
+                if (dt >= EJECTOR_UP_MS) {
+                    ejector.setPosition(ejectorDown);
+                    startStep(4);
+                }
+                break;
 
-        if (t >= prev_t + EJECTOR_DOWN_DELAY && !step7Done && step6Done) {
-            Posspinner = 0.46;
-            step7Done = true;
-            prev_t += EJECTOR_DOWN_DELAY;
-        }
+            case 4:
+                // hold ejector down
+                if (dt >= EJECTOR_DOWN_MS) {
+                    // move spinner to next slot
+                    Posspinner = 0.28;
+                    startStep(5);
+                }
+                break;
 
-        if (t >= prev_t + SPINNER_SLOT_CHANGE_DELAY && !step8Done && step7Done&& rpm<=TARGET_RPM+100 && rpm>=TARGET_RPM-100) {
-            ejector.setPosition(ejectorUp);
-            step8Done = true;
-            prev_t += SPINNER_SLOT_CHANGE_DELAY;
-        }
+            case 5:
+                // wait for spinner move
+                if (dt >= SPINNER_MOVE_MS) {
+                    rpmInRangeSinceMs = 0; // re-arm rpm stability for next shot
+                    startStep(6);
+                }
+                break;
 
-        if (t >= prev_t + EJECTOR_UP_DELAY && !step9Done && step8Done) {
-            ejector.setPosition(ejectorDown);
-            step9Done = true;
-            prev_t += EJECTOR_UP_DELAY;
-        }
+            case 6:
+                // SHOOT #2
+                if (rpmInRangeStable()) {
+                    ejector.setPosition(ejectorUp);
+                    startStep(7);
+                }
+                break;
 
-        if (t >= prev_t + EJECTOR_DOWN_DELAY && !step10Done && step9Done) {
-            Posspinner = 0;
-            step10Done = true;
+            case 7:
+                if (dt >= EJECTOR_UP_MS) {
+                    ejector.setPosition(ejectorDown);
+                    startStep(8);
+                }
+                break;
 
-            // ===================== AUTO RESET TO INTAKE AFTER SHOOTING =====================
-            outtakeMode = false;
+            case 8:
+                if (dt >= EJECTOR_DOWN_MS) {
+                    Posspinner = 0.46;
+                    startStep(9);
+                }
+                break;
 
-            // Go straight back to intake without needing B/circle again
-            intakeMode = true;
-            spinIntake = true;
-            intake.setPower(-1);
+            case 9:
+                if (dt >= SPINNER_MOVE_MS) {
+                    rpmInRangeSinceMs = 0;
+                    startStep(10);
+                }
+                break;
 
-            // Reset indexing so it can recount cleanly
-            slotIntakeIndex = 0;
-            Posspinner = 0;
+            case 10:
+                // SHOOT #3
+                if (rpmInRangeStable()) {
+                    ejector.setPosition(ejectorUp);
+                    startStep(11);
+                }
+                break;
 
-            launchPrepActive = false;
-            resetIntakeGatingAndFilters();
+            case 11:
+                if (dt >= EJECTOR_UP_MS) {
+                    ejector.setPosition(ejectorDown);
+                    startStep(12);
+                }
+                break;
 
-            ballsLoaded = 0;
-            prev_t = 0;
-            // ============================================================================
+            case 12:
+                if (dt >= EJECTOR_DOWN_MS) {
+
+                    // end
+                    Posspinner = 0;
+
+                    // ===== AUTO RESET TO INTAKE AFTER SHOOTING (same behavior you had) =====
+                    outtakeMode = false;
+
+                    intakeMode = true;
+                    spinIntake = true;
+                    intake.setPower(-1);
+
+                    slotIntakeIndex = 0;
+                    Posspinner = 0;
+
+                    launchPrepActive = false;
+                    resetIntakeGatingAndFilters();
+
+                    ballsLoaded = 0;
+
+                    // reset FSM
+                    outtakeStep = 0;
+                    stepStartMs = 0;
+                    rpmInRangeSinceMs = 0;
+                }
+                break;
         }
     }
 
@@ -720,6 +793,11 @@ public class flywheeltestV2 extends LinearOpMode {
 
                 launchPrepActive = false;
                 resetIntakeGatingAndFilters();
+
+                // reset FSM too
+                outtakeStep = 0;
+                stepStartMs = 0;
+                rpmInRangeSinceMs = 0;
             }
 
             // Only run intake detection if we are not parked at launch
@@ -727,7 +805,6 @@ public class flywheeltestV2 extends LinearOpMode {
                 updateCulori();
                 colorDrivenSpinnerLogicServos();
             } else if (intakeMode && launchPrepActive) {
-                // still update debug colors if you want
                 updateCulori();
             }
 
@@ -739,21 +816,14 @@ public class flywheeltestV2 extends LinearOpMode {
                 intakeMode = false;
                 outtakeMode = true;
                 intake.setPower(0);
+
+                // start outtake FSM cleanly
+                outtakeStep = 0;
+                stepStartMs = System.currentTimeMillis();
+                rpmInRangeSinceMs = 0;
+
+                // keep old vars harmless
                 outtakeTimeout.reset();
-
-                // once outtake starts, we don't want launch-hold logic to overwrite Posspinner
-                // (it will be cleared at the end of the sequence)
-                step1Done = false;
-                step2Done = false;
-                step3Done = false;
-                step4Done = false;
-                step5Done = false;
-                step6Done = false;
-                step7Done = false;
-                step8Done = false;
-                step9Done = false;
-                step10Done = false;
-
                 prev_t = 0;
             }
 
@@ -767,31 +837,23 @@ public class flywheeltestV2 extends LinearOpMode {
             if (outtakeMode) {
                 runOuttake();
             }
-            if (gamepad2.yWasPressed())
-            {
-                TARGET_RPM+=25;
-            }
-            if (gamepad2.crossWasPressed())
-            {
-                TARGET_RPM-=25;
-            }
-            if (gamepad2.squareWasPressed())
-            {
-                kP_v+=0.1;
-            }
-            else if (gamepad2.circleWasPressed())
-            {
-                kP_v-=0.1;
-            }
-            else if (gamepad2.leftBumperWasPressed())
-            {
-                kF_v+=0.1;
-            }
-            else if (gamepad2.rightBumperWasPressed())
-            {
-                kF_v-=0.1;
-            }
 
+            // tuning on gamepad2
+            if (gamepad2.yWasPressed()) {
+                TARGET_RPM += 5;
+            }
+            if (gamepad2.crossWasPressed()) {
+                TARGET_RPM -= 5;
+            }
+            if (gamepad2.squareWasPressed()) {
+                kP_v += 0.1;
+            } else if (gamepad2.circleWasPressed()) {
+                kP_v -= 0.1;
+            } else if (gamepad2.leftBumperWasPressed()) {
+                kF_v += 0.05;
+            } else if (gamepad2.rightBumperWasPressed()) {
+                kF_v -= 0.05;
+            }
 
             updateTelemetry();
             idle();

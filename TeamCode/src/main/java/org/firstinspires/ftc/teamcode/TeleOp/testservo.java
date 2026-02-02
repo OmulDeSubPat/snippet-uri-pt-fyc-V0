@@ -80,6 +80,7 @@ public class testservo extends LinearOpMode {
             // --------------------
             if (gamepad1.right_bumper)flywheel.setPower(0.4);
             if (gamepad1.left_bumper)flywheel.setPower(0);
+
             telemetry.addData("Servo Position", servoPosition);
             telemetry.addData("Direction", ejectorServo.getDirection());
             telemetry.addData("PS Sequence Active", psActive);

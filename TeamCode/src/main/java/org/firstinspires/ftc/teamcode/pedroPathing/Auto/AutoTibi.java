@@ -386,7 +386,7 @@ public class AutoTibi extends OpMode {
 
             case 1: // Path2
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.5, true);
+                    follower.followPath(paths.Path2, 0.3, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -397,7 +397,7 @@ public class AutoTibi extends OpMode {
 
             case 2: // Path3
                 if (!pathStarted) {
-                    follower.followPath(paths.Path3, 0.7, true);
+                    follower.followPath(paths.Path3, 0.5, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -408,7 +408,7 @@ public class AutoTibi extends OpMode {
 
             case 3: // Path4
                 if (!pathStarted) {
-                    follower.followPath(paths.Path4, 0.8, true);
+                    follower.followPath(paths.Path4, 0.6, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -606,9 +606,9 @@ public class AutoTibi extends OpMode {
         intake.setPower(1);
 
         final int EJECTOR_UP_DELAY = 300;
-        final int EJECTOR_DOWN_DELAY = 300;
-        final int SPINNER_SLOT_CHANGE_DELAY = 487  ;
-        final int INITIAL_DELAY = 1250;
+        final int EJECTOR_DOWN_DELAY = 170;
+        final int SPINNER_SLOT_CHANGE_DELAY = 300;
+        final int INITIAL_DELAY = 400;
         // FIX: clear ONCE per outtake, not every loop
         if (!outtakeInitDone) {
             slots[0] = logicalSlots[0];
@@ -727,7 +727,7 @@ public class AutoTibi extends OpMode {
                     .build();
 
             Path4 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(57.115, 15.0780904), new Pose(35.894, 15.232)))
+                    .addPath(new BezierLine(new Pose(57.115, 15.0780904), new Pose(35.894, 18.232)))
                     .setLinearHeadingInterpolation(Math.toRadians(120), Math.toRadians(90))
                     .build();
         }

@@ -322,7 +322,7 @@ public class AutoTibi extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.4, true);
+                    follower.followPath(paths.Path2, 0.3, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -801,33 +801,33 @@ public class AutoTibi extends OpMode {
 
             // go shooting prima linie
             Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(46.672, 59.278), new Pose(12.365, 59.278)))
+                    .addPath(new BezierLine(new Pose(46.672, 59.278), new Pose(7.365, 59.278)))
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
             // ia prima linie -> back to shooting
             Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(12.365, 59.278), new Pose(61.836, 26.8194)))
+                    .addPath(new BezierLine(new Pose(7.365, 59.278), new Pose(61.836, 26.8194)))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
                     .build();
 
             // merge player uman
             Path4 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(61.836, 26.8194), new Pose(33.229, 48.786)))
+                    .addPath(new BezierLine(new Pose(61.836, 26.8194), new Pose(33.229, 50.786)))
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
             // ia de la human player
-            Path5 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(33.229, 48.786), new Pose(9.049, 10.786)))
+      /*      Path5 = follower.pathBuilder()
+                    .addPath(new BezierLine(new Pose(33.229, 50.786), new Pose(9.049, 50.786)))
                     .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
+                    .build();*/
 
             // back to shooting
-            Path6 = follower.pathBuilder()
+          /*  Path6 = follower.pathBuilder()
                     .addPath(new BezierLine(new Pose(9.049, 10.786), new Pose(61.836, 26.8194)))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
-                    .build();
+                    .build();*/
         }
     }
 }

@@ -72,8 +72,8 @@ public class AutoBlueClose extends OpMode {
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
 
     // imported from TeleOp shooter
-    public static double TARGET_RPM = 2400;
-    public static double kP_v = 12;
+    public static double TARGET_RPM = 2500;
+    public static double kP_v = 10;
     public static final double kI_v = 0.0;
     public static final double kD_v = 0.0;
     public static double kF_v = 14;
@@ -143,7 +143,7 @@ public class AutoBlueClose extends OpMode {
     private int outtakeStep = 0;
     private long stepStartMs = 0;
 
-    private static final double RPM_TOL = 100.0;
+    private static final double RPM_TOL = 200.0;
     private static final long RPM_STABLE_MS = 80;
     private long rpmInRangeSinceMs = 0;
     private Pose robotPose;
@@ -151,7 +151,7 @@ public class AutoBlueClose extends OpMode {
 
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 20.0));
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 200.0));
         long now = System.currentTimeMillis();
 
         if (!inRange) {
@@ -345,16 +345,19 @@ public class AutoBlueClose extends OpMode {
                 break;
 
             // Stage 5: run Path4
+// Stage 5: run last path (same as Path3)
             case 5:
                 if (!pathStarted) {
-                    follower.followPath(paths.Path4, true);
+                    follower.followPath(paths.Path3, true); // use Path3
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
                     pathStarted = false;
-                    autoStage = 6;
+                    autoStage = 6; // move to shooting stage
                 }
                 break;
+
+
 
             // Stage 6: SHOOT after Path4
             case 6:
@@ -373,9 +376,71 @@ public class AutoBlueClose extends OpMode {
                 break;
 
             // Stage 7: DONE
+            // Stage 7: go to 55,117 (intake ON)
             case 7:
+                intakeMode = true;
+                spinIntake = true;
+                intake.setPower(1);
+
+                if (!pathStarted) {
+                    follower.followPath(paths.Path5, 0.8, true);
+                    pathStarted = true;
+                }
+                if (!follower.isBusy()) {
+                    pathStarted = false;
+                    autoStage = 8;
+                }
+                break;
+
+// Stage 8: go to 15,117 (slow)
+            case 8:
+                if (!pathStarted) {
+                    follower.followPath(paths.Path6, 0.3, true); // slow power
+                    pathStarted = true;
+                }
+                if (!follower.isBusy()) {
+                    pathStarted = false;
+                    autoStage = 9;
+                }
+                break;
+
+// Stage 9: go to 55,93 and shoot
+            case 9:
+                intakeMode = false;
+                spinIntake = false;
+                intake.setPower(0);
+
+                if (!pathStarted) {
+                    follower.followPath(paths.Path7, 0.8, true);
+                    pathStarted = true;
+                }
+                if (!follower.isBusy()) {
+                    pathStarted = false;
+                    autoStage = 10; // shoot stage
+                }
+                break;
+
+// Stage 10: SHOOT
+            case 10:
+                if (!shootStageStarted) {
+                    if (delayDone()) {
+                        startOuttake();
+                        shootStageStarted = true;
+                    }
+                } else {
+                    if (!outtakeMode) {
+                        shootStageStarted = false;
+                        waiting = false;
+                        autoStage = 11; // DONE
+                    }
+                }
+                break;
+
+// Stage 11: DONE
+            case 11:
                 intake.setPower(0);
                 break;
+
         }
 
 
@@ -735,50 +800,58 @@ public class AutoBlueClose extends OpMode {
 
     /* ===================== PATHS ===================== */
     /* ===================== PATHS ===================== */
-    public static class Paths {
-        public PathChain Path0;
-        public PathChain Path1;
-        public PathChain Path2;
-        public PathChain Path3;
-        public PathChain Path4;
 
-        public Paths(Follower follower) {
-            // Path1
-            Path0 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(22.393, 125.607),
-                            new Pose(58 ,89)
-                    ))
-                    .setConstantHeadingInterpolation(Math.toRadians(145))
-                    .build();
+        public static class Paths {
+            public PathChain Path0;
+            public PathChain Path1;
+            public PathChain Path2;
+            public PathChain Path3;
+            public PathChain Path4;
 
-            // Path2
-            Path1 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(58 ,89),//done
-                            new Pose(55,93)
-                    ))
-                    .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(180))
-                    .build();
+            // NEW PATHS
+            public PathChain Path5; // go to 55,117
+            public PathChain Path6; // go to 15,117 (slow)
+            public PathChain Path7; // go to 55,93 (shoot)
 
-            // Path3
-            Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(55,93),//done
-                            new Pose(23 ,93)
-                    ))
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();
+            public Paths(Follower follower) {
+                // Existing paths
+                Path0 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(22.393, 125.607), new Pose(58, 89)))
+                        .setConstantHeadingInterpolation(Math.toRadians(145))
+                        .build();
 
-            // Path4
-            Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(23 ,93),
-                            new Pose(58 ,89)
-                    ))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(145))
-                    .build();
+                Path1 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 93)))
+                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(180))
+                        .build();
+
+                Path2 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(55, 93), new Pose(23, 93)))
+                        .setConstantHeadingInterpolation(Math.toRadians(180))
+                        .build();
+
+                Path3 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(23, 93), new Pose(58, 89)))
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(145))
+                        .build();
+
+                // NEW PATHS
+                Path5 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 117)))
+                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(90))
+                        .build();
+
+                Path6 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(55, 80), new Pose(15, 80)))
+                        .setConstantHeadingInterpolation(Math.toRadians(90))
+                        .build();
+
+                Path7 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(15, 80), new Pose(55, 93)))
+                        .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180))
+                        .build();
+            }
         }
-    }
 
-}
+
+    }

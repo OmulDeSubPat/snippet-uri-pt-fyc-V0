@@ -16,9 +16,9 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 
-@Autonomous(name = "&AutoBlueClose", group = "Autonomous")
+@Autonomous(name = "&AutoBlueCloseTest", group = "Autonomous")
 @Configurable
-public class AutoBlueClose extends OpMode {
+public class AutoBlueCloseTest extends OpMode {
 
     /* ===================== TELEMETRY ===================== */
     private TelemetryManager panelsTelemetry;
@@ -269,39 +269,40 @@ public class AutoBlueClose extends OpMode {
         switch (autoStage) {
 
             // Stage 0: run Path0
+// Stage 0: run full first cycle
             case 0:
                 if (!pathStarted) {
-                    follower.followPath(paths.Path0, 0.7, true);
+                    follower.followPath(paths.cycle1, 0.8, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
                     pathStarted = false;
-                    waiting = false;
-                    shootStageStarted = false;
                     autoStage = 1;
                 }
                 break;
 
-            // Stage 1: SHOOT after Path0 (BLOCK until finished)
+// Stage 1: Shoot
             case 1:
                 if (!shootStageStarted) {
                     if (delayDone()) {
                         startOuttake();
                         shootStageStarted = true;
                     }
-                } else {
-                    if (!outtakeMode) {
-                        shootStageStarted = false;
-                        waiting = false;
-                        autoStage = 2;
-                    }
+                } else if (!outtakeMode) {
+                    shootStageStarted = false;
+                    waiting = false;
+                    autoStage = 2;
                 }
                 break;
 
-            // Stage 2: run Path1
+// Stage 2: Intake (slow)
             case 2:
+                intakeMode = true;
+                spinIntake = true;
+                intake.setPower(1);
+
                 if (!pathStarted) {
-                    follower.followPath(paths.Path1, 0.8, true);
+                    follower.followPath(paths.intakeLoop, 0.3, true); // ← slow intake
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -310,135 +311,22 @@ public class AutoBlueClose extends OpMode {
                 }
                 break;
 
-            // Stage 3: run Path2 (intake ON)
+// Stage 3: Shoot again
             case 3:
-                intakeMode = true;
-                spinIntake = true;
-                intake.setPower(1);
-
-                if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.3, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 4;
-                }
-                break;
-
-            // Stage 4: run Path3 (intake OFF, take the balls)
-            case 4:
                 intakeMode = false;
                 spinIntake = false;
                 intake.setPower(0);
 
-                if (!pathStarted) {
-                    follower.followPath(paths.Path3, 0.8, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    waiting = false;
+                if (!shootStageStarted) {
+                    if (delayDone()) {
+                        startOuttake();
+                        shootStageStarted = true;
+                    }
+                } else if (!outtakeMode) {
                     shootStageStarted = false;
-                    autoStage = 5;
+                    waiting = false;
+                    autoStage = 2;   // loop back to intake
                 }
-                break;
-
-            // Stage 5: run Path4
-// Stage 5: run last path (same as Path3)
-            case 5:
-                if (!pathStarted) {
-                    follower.followPath(paths.Path3, true); // use Path3
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 6; // move to shooting stage
-                }
-                break;
-
-
-
-            // Stage 6: SHOOT after Path4
-            case 6:
-                if (!shootStageStarted) {
-                    if (delayDone()) {
-                        startOuttake();
-                        shootStageStarted = true;
-                    }
-                } else {
-                    if (!outtakeMode) {
-                        shootStageStarted = false;
-                        waiting = false;
-                        autoStage = 7; // DONE
-                    }
-                }
-                break;
-
-            // Stage 7: DONE
-            // Stage 7: go to 55,117 (intake ON)
-            case 7:
-                intakeMode = true;
-                spinIntake = true;
-                intake.setPower(1);
-
-                if (!pathStarted) {
-                    follower.followPath(paths.Path5, 0.8, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 8;
-                }
-                break;
-
-// Stage 8: go to 15,117 (slow)
-            case 8:
-                if (!pathStarted) {
-                    follower.followPath(paths.Path6, 0.3, true); // slow power
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 9;
-                }
-                break;
-
-// Stage 9: go to 55,93 and shoot
-            case 9:
-                intakeMode = false;
-                spinIntake = false;
-                intake.setPower(0);
-
-                if (!pathStarted) {
-                    follower.followPath(paths.Path7, 0.8, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 10; // shoot stage
-                }
-                break;
-
-// Stage 10: SHOOT
-            case 10:
-                if (!shootStageStarted) {
-                    if (delayDone()) {
-                        startOuttake();
-                        shootStageStarted = true;
-                    }
-                } else {
-                    if (!outtakeMode) {
-                        shootStageStarted = false;
-                        waiting = false;
-                        autoStage = 11; // DONE
-                    }
-                }
-                break;
-
-// Stage 11: DONE
-            case 11:
-                intake.setPower(0);
                 break;
 
         }
@@ -799,59 +687,75 @@ public class AutoBlueClose extends OpMode {
     }
 
     /* ===================== PATHS ===================== */
-    /* ===================== PATHS ===================== */
+    public static class Paths {
 
-        public static class Paths {
-            public PathChain Path0;
-            public PathChain Path1;
-            public PathChain Path2;
-            public PathChain Path3;
-            public PathChain Path4;
+        public PathChain cycle1;      // start → shoot → intake → shoot
+        public PathChain intakeLoop;  // shoot ↔ intake loop
 
-            // NEW PATHS
-            public PathChain Path5; // go to 55,117
-            public PathChain Path6; // go to 15,117 (slow)
-            public PathChain Path7; // go to 55,93 (shoot)
+        public Paths(Follower follower) {
 
-            public Paths(Follower follower) {
-                // Existing paths
-                Path0 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(22.393, 125.607), new Pose(58, 89)))
-                        .setConstantHeadingInterpolation(Math.toRadians(145))
-                        .build();
+            cycle1 = follower.pathBuilder()
 
-                Path1 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 93)))
-                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(180))
-                        .build();
+                    // Start → First shoot
+                    .addPath(new BezierLine(
+                            new Pose(22.393, 125.607),
+                            new Pose(66.177, 82.426)
+                    ))
+                    .setConstantHeadingInterpolation(Math.toRadians(-36))
 
-                Path2 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(55, 93), new Pose(23, 93)))
-                        .setConstantHeadingInterpolation(Math.toRadians(180))
-                        .build();
+                    // Align at shooter
+                    .addPath(new BezierLine(
+                            new Pose(66.177, 82.426),
+                            new Pose(45.836, 83.803)
+                    ))
+                    .setLinearHeadingInterpolation(
+                            Math.toRadians(-36),
+                            Math.toRadians(180)
+                    )
 
-                Path3 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(23, 93), new Pose(58, 89)))
-                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(145))
-                        .build();
+                    // Shoot → Intake
+                    .addPath(new BezierLine(
+                            new Pose(45.836, 83.803),
+                            new Pose(17.295, 83.656)
+                    ))
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
 
-                // NEW PATHS
-                Path5 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 80)))
-                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(90))
-                        .build();
+                    // Intake → Back to shooter
+                    .addPath(new BezierLine(
+                            new Pose(17.295, 83.656),
+                            new Pose(66.033, 82.623)
+                    ))
+                    .setLinearHeadingInterpolation(
+                            Math.toRadians(180),
+                            Math.toRadians(-36)
+                    )
 
-                Path6 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(55, 80), new Pose(15, 80)))
-                        .setConstantHeadingInterpolation(Math.toRadians(90))
-                        .build();
+                    .build();
 
-                Path7 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(15, 80), new Pose(55, 93)))
-                        .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180))
-                        .build();
-            }
+
+            intakeLoop = follower.pathBuilder()
+
+                    // Shoot → Intake
+                    .addPath(new BezierLine(
+                            new Pose(66.033, 82.623),
+                            new Pose(17.295, 83.656)
+                    ))
+                    .setConstantHeadingInterpolation(Math.toRadians(180))
+
+                    // Intake → Shoot
+                    .addPath(new BezierLine(
+                            new Pose(17.295, 83.656),
+                            new Pose(66.033, 82.623)
+                    ))
+                    .setLinearHeadingInterpolation(
+                            Math.toRadians(180),
+                            Math.toRadians(-36)
+                    )
+
+                    .build();
         }
-
-
     }
+
+
+
+}

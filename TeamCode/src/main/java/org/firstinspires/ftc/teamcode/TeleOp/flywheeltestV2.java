@@ -110,13 +110,13 @@ public class flywheeltestV2 extends LinearOpMode {
 
     /* ===================== FLYWHEEL (REV VELOCITY CONTROL) ===================== */
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
-    static double TARGET_RPM = 3065.0;
+    static double TARGET_RPM = 3055.0;
     static double TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0; // ticks/sec
 
-    static double kP_v = 15.1;
+    static double kP_v = 15;
     static final double kI_v = 0.0;
     static final double kD_v = 0.0;
-    static double kF_v = 12.45;
+    static double kF_v = 12.8;
 
     static final double KICK_POWER = 1.0;
     static final double KICK_TIME_S = 0.20;
@@ -159,6 +159,7 @@ public class flywheeltestV2 extends LinearOpMode {
     long colorStartTimeMs = 0;
 
     boolean detectionLocked = false;
+    Servo trajectoryAngleModifier;
     boolean waitingForClear = false;
     boolean spinnerMoving = false;
 
@@ -171,12 +172,12 @@ public class flywheeltestV2 extends LinearOpMode {
     private long stepStartMs = 0;
 
     // shoot only within +/- 100 RPM, optionally stable for a short time
-    private static final double RPM_TOL = 100.0;
+    private static final double RPM_TOL = 50.0;
     private static final long RPM_STABLE_MS = 80; // prevents 1-loop spikes
     private long rpmInRangeSinceMs = 0;
 
     private boolean rpmInRangeStable() {
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM+20));
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM+50));
         long now = System.currentTimeMillis();
 
         if (!inRange) {
@@ -271,10 +272,12 @@ public class flywheeltestV2 extends LinearOpMode {
         ejector = hardwareMap.get(Servo.class, "ejector");
         spinnerFar = hardwareMap.get(Servo.class, "SpinnerFar");
         spinnerCLose = hardwareMap.get(Servo.class, "SpinnerClose");
+        trajectoryAngleModifier = hardwareMap.get(Servo.class, "unghituretaoy");
         ejector.setDirection(Servo.Direction.REVERSE);
         ejector.setPosition(ejectorDown);
         spinnerFar.setPosition(0);
         spinnerCLose.setPosition(0);
+        trajectoryAngleModifier.setPosition(0.00);
     }
 
     private void InitLL() {

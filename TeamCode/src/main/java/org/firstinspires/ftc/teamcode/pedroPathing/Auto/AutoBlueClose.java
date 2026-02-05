@@ -46,6 +46,7 @@ public class AutoBlueClose extends OpMode {
     /* ===================== DELAY GATE ===================== */
     ElapsedTime autoDelay = new ElapsedTime();
     boolean waiting = false;
+    DcMotorEx tureta;
     final double COMMAND_DELAY = 0.0; // set to 0 for instant; change if you want a pause before each shoot
 
     private boolean delayDone() {
@@ -189,6 +190,11 @@ public class AutoBlueClose extends OpMode {
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+        tureta = hardwareMap.get(DcMotorEx.class,"tureta");
+        tureta.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
 
         // you had REVERSE in your code
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -301,7 +307,7 @@ public class AutoBlueClose extends OpMode {
             // Stage 2: run Path1
             case 2:
                 if (!pathStarted) {
-                    follower.followPath(paths.Path1, 0.8, true);
+                    follower.followPath(paths.Path1, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -317,7 +323,7 @@ public class AutoBlueClose extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.3, true);
+                    follower.followPath(paths.Path2, 0.4, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -333,7 +339,7 @@ public class AutoBlueClose extends OpMode {
                 intake.setPower(0);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path3, 0.8, true);
+                    follower.followPath(paths.Path3, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -383,7 +389,7 @@ public class AutoBlueClose extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path5, 0.8, true);
+                    follower.followPath(paths.Path5, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -395,7 +401,7 @@ public class AutoBlueClose extends OpMode {
 // Stage 8: go to 15,117 (slow)
             case 8:
                 if (!pathStarted) {
-                    follower.followPath(paths.Path6, 0.3, true); // slow power
+                    follower.followPath(paths.Path6, 0.4, true); // slow power
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -411,7 +417,7 @@ public class AutoBlueClose extends OpMode {
                 intake.setPower(0);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path7, 0.8, true);
+                    follower.followPath(paths.Path7, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -437,9 +443,26 @@ public class AutoBlueClose extends OpMode {
                 break;
 
 // Stage 11: DONE
+// Stage 11: go to FINAL park (45,86)
             case 11:
-                intake.setPower(0);
+                if (!pathStarted) {
+                    follower.followPath(paths.Path8, 0.7, true);
+                    pathStarted = true;
+                }
+                if (!follower.isBusy()) {
+                    pathStarted = false;
+                    autoStage = 12;
+                }
                 break;
+
+            // Stage 12: FINAL DONE
+            case 12:
+                intake.setPower(0);
+                tureta.setTargetPosition(545);
+                tureta.setPower(0.1);
+                tureta.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                break;
+
 
         }
 
@@ -463,6 +486,7 @@ public class AutoBlueClose extends OpMode {
         panelsTelemetry.debug("Flywheel RPM", rpm);
         panelsTelemetry.debug("Flywheel Target", TARGET_RPM);
         panelsTelemetry.debug("rpmStable", rpmInRangeStable());
+        panelsTelemetry.debug("tureta ticks", tureta.getCurrentPosition());
 
 
         panelsTelemetry.update(telemetry);
@@ -812,6 +836,8 @@ public class AutoBlueClose extends OpMode {
             public PathChain Path5; // go to 55,117
             public PathChain Path6; // go to 15,117 (slow)
             public PathChain Path7; // go to 55,93 (shoot)
+            public PathChain Path8; // FINAL PARK at (45, 86)
+
 
             public Paths(Follower follower) {
                 // Existing paths
@@ -821,35 +847,41 @@ public class AutoBlueClose extends OpMode {
                         .build();
 
                 Path1 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 93)))
+                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 95)))
                         .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(180))
                         .build();
 
                 Path2 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(55, 93), new Pose(23, 93)))
+                        .addPath(new BezierLine(new Pose(55, 95), new Pose(23, 95)))
                         .setConstantHeadingInterpolation(Math.toRadians(180))
                         .build();
 
                 Path3 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(23, 93), new Pose(58, 89)))
+                        .addPath(new BezierLine(new Pose(23, 95), new Pose(58, 89)))
                         .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(145))
                         .build();
 
                 // NEW PATHS
                 Path5 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(58, 89), new Pose(55, 80)))
-                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(90))
+                        .addPath(new BezierLine(new Pose(58, 89), new Pose(58, 68)))
+                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(180))
                         .build();
 
                 Path6 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(55, 80), new Pose(15, 80)))
-                        .setConstantHeadingInterpolation(Math.toRadians(90))
+                        .addPath(new BezierLine(new Pose(58, 68), new Pose(18, 68)))
+                        .setConstantHeadingInterpolation(Math.toRadians(180))
                         .build();
 
                 Path7 = follower.pathBuilder()
-                        .addPath(new BezierLine(new Pose(15, 80), new Pose(55, 93)))
-                        .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(180))
+                        .addPath(new BezierLine(new Pose(18, 68), new Pose(58, 89)))
+                        .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(145))
                         .build();
+
+                Path8 = follower.pathBuilder()
+                        .addPath(new BezierLine(new Pose(58, 89), new Pose(45, 86)))
+                        .setLinearHeadingInterpolation(Math.toRadians(145), Math.toRadians(145))
+                        .build();
+
             }
         }
 

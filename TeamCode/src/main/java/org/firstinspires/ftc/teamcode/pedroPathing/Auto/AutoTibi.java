@@ -66,6 +66,8 @@ public class AutoTibi extends OpMode {
 
     /* ===================== HARDWARE ===================== */
     DcMotor intake;
+    DcMotorEx tureta;
+
     DcMotorEx flywheel;
     Servo spinnerCLose, spinnerFar, ejector;
     ColorSensor colorsensorSLot1, colorsensorSLot2, colorsensorSLot3;
@@ -75,11 +77,11 @@ public class AutoTibi extends OpMode {
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
 
     // imported from TeleOp shooter
-    public static double TARGET_RPM = 3065.0;
-    public static double kP_v = 15.1;
+    public static double TARGET_RPM = 3055.0;
+    public static double kP_v = 15;
     public static final double kI_v = 0.0;
     public static final double kD_v = 0.0;
-    public static double kF_v = 12.45;
+    public static double kF_v = 12.8;
 
     private double targetTPS;
     private double rpm = 0.0;
@@ -146,7 +148,7 @@ public class AutoTibi extends OpMode {
     private int outtakeStep = 0;
     private long stepStartMs = 0;
 
-    private static final double RPM_TOL = 100.0;
+    private static final double RPM_TOL = 50.0;
     private static final long RPM_STABLE_MS = 80;
     private long rpmInRangeSinceMs = 0;
     private Pose robotPose;
@@ -154,7 +156,7 @@ public class AutoTibi extends OpMode {
 
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 20.0));
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 50.0));
         long now = System.currentTimeMillis();
 
         if (!inRange) {
@@ -192,6 +194,9 @@ public class AutoTibi extends OpMode {
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+        tureta = hardwareMap.get(DcMotorEx.class,"tureta");
+        tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
         // you had REVERSE in your code
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -322,7 +327,7 @@ public class AutoTibi extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.3, true);
+                    follower.followPath(paths.Path2, 0.25, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -379,53 +384,15 @@ public class AutoTibi extends OpMode {
                 }
                 break;
 
-            // Stage 7: run Path5
-            case 7:
-                if (outtakeMode) break;
-                if (!pathStarted) {
-                    follower.followPath(paths.Path5, 0.7, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 8;
-                }
-                break;
-
-            // Stage 8: run Path6
-            case 8:
-                if (outtakeMode) break;
-                if (!pathStarted) {
-                    follower.followPath(paths.Path6, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    waiting = false;
-                    shootStageStarted = false;
-                    autoStage = 9; // shoot after Path6
-                }
-                break;
-
-            // Stage 9: SHOOT after Path6 (BLOCK)
-            case 9:
-                if (!shootStageStarted) {
-                    if (delayDone()) {
-                        startOuttake();
-                        shootStageStarted = true;
-                    }
-                } else {
-                    if (!outtakeMode) {
-                        shootStageStarted = false;
-                        waiting = false;
-                        autoStage = 10;
-                    }
-                }
-                break;
+            // Stage 7:
 
             // Stage 10: DONE
             case 10:
                 intake.setPower(0);
+                tureta.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                tureta.setTargetPosition(545);
+                tureta.setPower(0.2);
+
                 break;
         }
 
@@ -460,7 +427,7 @@ public class AutoTibi extends OpMode {
         spinIntake = false;
 
         // feeding during shooting (with REVERSE direction, power(1) is "reverse")
-        intake.setPower(1);
+        intake.setPower(0);
 
         // prevent launch-hold overwriting during sequence
         launchPrepActive = false;
@@ -801,13 +768,13 @@ public class AutoTibi extends OpMode {
 
             // go shooting prima linie
             Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(46.672, 59.278), new Pose(7.365, 59.278)))
+                    .addPath(new BezierLine(new Pose(46.672, 59.278), new Pose(20.365, 59.278)))
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
             // ia prima linie -> back to shooting
             Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(7.365, 59.278), new Pose(61.836, 26.8194)))
+                    .addPath(new BezierLine(new Pose(25.365, 59.278), new Pose(61.836, 26.8194)))
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
                     .build();
 

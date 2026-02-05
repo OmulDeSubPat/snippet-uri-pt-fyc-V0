@@ -54,7 +54,7 @@ public class Constants {
             (
                     0.99,
                     100,
-                    1.1,
+                    1.5,
                     1
             );
 

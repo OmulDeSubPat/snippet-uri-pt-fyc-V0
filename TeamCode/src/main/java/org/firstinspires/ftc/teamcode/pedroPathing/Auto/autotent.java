@@ -16,7 +16,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 
-@Autonomous(name = "&testeazaastaboule", group = "Autonomous")
+@Autonomous(name = "testeazaastaboule", group = "Autonomous")
 @Configurable
 public class autotent extends OpMode {
     // ===== TELEOP-GRADE COLOR SYSTEM =====

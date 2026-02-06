@@ -16,7 +16,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
 @Autonomous(
-        name = "AutoStefan_Blue_Flywheel_Back_WaitRPMor4_+1s_Shoot3_Stop",
+        name = "test",
         group = "Auto"
 )
 public class AutoStefan extends OpMode {

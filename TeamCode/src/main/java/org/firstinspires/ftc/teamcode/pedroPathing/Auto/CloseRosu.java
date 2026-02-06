@@ -16,7 +16,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 
-@Autonomous(name = "&AutoRedClose", group = "Autonomous")
+@Autonomous(name = "AutoRedClose", group = "Autonomous")
 @Configurable
 public class CloseRosu extends OpMode {
 

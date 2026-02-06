@@ -16,7 +16,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 
-@Autonomous(name = "&AutoTibichiRedFar", group = "Autonomous")
+@Autonomous(name = "&AutoRedFar//e stramb cosu rosu sau albastru", group = "Autonomous")
 @Configurable
 public class AutoTibiRed extends OpMode {
 

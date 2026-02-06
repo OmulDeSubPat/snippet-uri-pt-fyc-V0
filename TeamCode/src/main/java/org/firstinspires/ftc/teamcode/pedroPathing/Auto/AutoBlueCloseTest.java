@@ -16,7 +16,7 @@ import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 
-@Autonomous(name = "&AutoBlueCloseTest", group = "Autonomous")
+@Autonomous(name = "AutoBlueCloseTest", group = "Autonomous")
 @Configurable
 public class AutoBlueCloseTest extends OpMode {
 

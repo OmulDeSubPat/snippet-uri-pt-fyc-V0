@@ -153,6 +153,16 @@ public class AutoTibi extends OpMode {
     private long rpmInRangeSinceMs = 0;
     private Pose robotPose;
 
+    /* ===================== FLYWHEEL KICK START ===================== */
+
+    public static double KICK_RPM = 3600;     // overshoot target
+    public static double KICK_TIME = 0.45;    // seconds
+    public static double KICK_F_EXTRA = 3.0;  // extra feedforward during kick
+
+    private boolean kickActive = true;
+    private ElapsedTime kickTimer = new ElapsedTime();
+
+
 
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
@@ -197,6 +207,10 @@ public class AutoTibi extends OpMode {
         tureta = hardwareMap.get(DcMotorEx.class,"tureta");
         tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        kickActive = true;
+        kickTimer.reset();
+
 
         // you had REVERSE in your code
         intake.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -279,7 +293,7 @@ public class AutoTibi extends OpMode {
             case 0:
                 if (outtakeMode) break; // safety
                 if (!pathStarted) {
-                    follower.followPath(paths.Path0, 0.7, true);
+                    follower.followPath(paths.Path0, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -327,7 +341,7 @@ public class AutoTibi extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.25, true);
+                    follower.followPath(paths.Path2, 0.3, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -440,13 +454,25 @@ public class AutoTibi extends OpMode {
 
     /* ===================== FLYWHEEL ===================== */
     private void updateFlywheel() {
-        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
 
-        targetTPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
+        boolean inKick = kickActive && kickTimer.seconds() < KICK_TIME;
+
+        double rpmTarget = inKick ? KICK_RPM : TARGET_RPM;
+        double kF = inKick ? (kF_v + KICK_F_EXTRA) : kF_v;
+
+        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF);
+
+        targetTPS = rpmTarget * FLYWHEEL_TICKS_PER_REV / 60.0;
         flywheel.setVelocity(targetTPS);
 
         rpm = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
+
+        // turn kick off once real target reached
+        if (kickActive && rpm >= TARGET_RPM - 50) {
+            kickActive = false;
+        }
     }
+
 
     /* ===================== OUTTAKE SEQUENCE (TeleOp shooter FSM) ===================== */
     private void runOuttake() {

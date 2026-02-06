@@ -144,7 +144,7 @@ public class CloseRosu extends OpMode {
     private int outtakeStep = 0;
     private long stepStartMs = 0;
 
-    private static final double RPM_TOL = 200.0;
+    private static final double RPM_TOL = 50.0;
     private static final long RPM_STABLE_MS = 80;
     private long rpmInRangeSinceMs = 0;
     private Pose robotPose;
@@ -152,7 +152,7 @@ public class CloseRosu extends OpMode {
 
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 200.0));
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 50.0));
         long now = System.currentTimeMillis();
 
         if (!inRange) {
@@ -324,7 +324,7 @@ public class CloseRosu extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.4, true);
+                    follower.followPath(paths.Path2, 0.3, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {

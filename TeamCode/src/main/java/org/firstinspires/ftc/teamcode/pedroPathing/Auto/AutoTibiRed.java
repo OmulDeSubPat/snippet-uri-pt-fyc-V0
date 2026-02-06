@@ -75,12 +75,11 @@ public class AutoTibiRed extends OpMode {
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
 
     // imported from TeleOp shooter
-    public static double TARGET_RPM = 3065.0;
-    public static double kP_v = 15.1;
+    public static double TARGET_RPM = 3055.0;
+    public static double kP_v = 15;
     public static final double kI_v = 0.0;
     public static final double kD_v = 0.0;
-    public static double kF_v = 12.45;
-
+    public static double kF_v = 12.8;
     private double targetTPS;
     private double rpm = 0.0;
 
@@ -145,8 +144,17 @@ public class AutoTibiRed extends OpMode {
 
     private int outtakeStep = 0;
     private long stepStartMs = 0;
+    /* ===================== FLYWHEEL KICK START ===================== */
 
-    private static final double RPM_TOL = 100.0;
+    public static double KICK_RPM = 3600;     // overshoot target
+    public static double KICK_TIME = 0.45;    // seconds
+    public static double KICK_F_EXTRA = 3.0;  // extra feedforward during kick
+
+    private boolean kickActive = true;
+    private ElapsedTime kickTimer = new ElapsedTime();
+
+
+    private static final double RPM_TOL = 50.0;
     private static final long RPM_STABLE_MS = 80;
     private long rpmInRangeSinceMs = 0;
     private Pose robotPose;
@@ -154,7 +162,7 @@ public class AutoTibiRed extends OpMode {
 
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 20.0));
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 50.0));
         long now = System.currentTimeMillis();
 
         if (!inRange) {
@@ -182,6 +190,9 @@ public class AutoTibiRed extends OpMode {
     @Override
     public void init() {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+        kickActive = true;
+        kickTimer.reset();
+
 
         follower = Constants.createFollower(hardwareMap);
         follower.setStartingPose(new Pose(87.673, 8.027, Math.toRadians(90)));
@@ -797,7 +808,7 @@ public class AutoTibiRed extends OpMode {
                     ))
                     .setLinearHeadingInterpolation(
                             Math.toRadians(90),
-                            Math.toRadians(68.5)   // ← FIXED
+                            Math.toRadians(60)   // ← FIXED
                     )
                     .build();
 
@@ -808,7 +819,7 @@ public class AutoTibiRed extends OpMode {
                             new Pose(75, 31.5)
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(68.5),   // ← FIXED
+                            Math.toRadians(60),   // ← FIXED
                             Math.toRadians(0)
                     )
                     .build();
@@ -830,7 +841,7 @@ public class AutoTibiRed extends OpMode {
                     ))
                     .setLinearHeadingInterpolation(
                             Math.toRadians(0),
-                            Math.toRadians(68.5)   // ← FIXED
+                            Math.toRadians(60)   // ← FIXED
                     )
                     .build();
 

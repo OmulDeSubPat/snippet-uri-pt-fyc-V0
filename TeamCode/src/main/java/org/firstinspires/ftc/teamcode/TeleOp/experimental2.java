@@ -17,8 +17,8 @@ import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.teamcode.pedroPathing.Constants;
 
-@TeleOp(name = "TeleOpBtvechi")
-public class StefanUpdated extends LinearOpMode {
+@TeleOp(name = "&TeleOpBtMeci1 3")
+public class experimental2 extends LinearOpMode {
 
     /* ===================== SENSOR SMOOTHING (live debug) ===================== */
     int[] last5Sensor1 = new int[5];
@@ -95,23 +95,17 @@ public class StefanUpdated extends LinearOpMode {
     PinpointLocalizer pinpoint;
     Pose pose;
     double CoordX, CoordY, header;
-    double Posspinner = 0;
 
     int ballsLoaded = 0;
 
     /* ===================== SPINDEXER OFFSETS / POSITIONS ===================== */
-    double offset=0;
-    private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015; // your updated value
-    private static final double SPINDEXER_INTAKE_OFFSET  = -0.01; // your old intake bias
-    private static final double SPINNER_LAUNCH_POS       = 0.085; // launch/prep position
-
-    // When full, we park at launch pos until shooting (outtake) finishes
+    private static final double SPINNER_LAUNCH_POS = 0.085; // launch/prep position
     private boolean launchPrepActive = false;
 
     /* ===================== FLYWHEEL (REV VELOCITY CONTROL) ===================== */
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
     static final double TARGET_RPM = 2471.0;
-    static final double TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0; // ticks/sec
+    static final double TARGET_TPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
 
     static final double kP_v = 12.0;
     static final double kI_v = 0.0;
@@ -124,6 +118,7 @@ public class StefanUpdated extends LinearOpMode {
     boolean flywheelOn = false;
     ElapsedTime flyKickTimer = new ElapsedTime();
     boolean kicking = false;
+    Servo trajectoryAngleModifier;
 
     /* ===================== TURRET ===================== */
     private static final double MOTOR_TICKS_PER_REV = 384.5;
@@ -165,6 +160,95 @@ public class StefanUpdated extends LinearOpMode {
     static final long DETECT_DELAY_MS = 0;
     static final long SERVO_MOVE_LOCK_MS = 45;
     long servoMoveStartMs = 0;
+
+    /* =========================================================================================
+       ===================== SPINNER SERVO CENTERING (deadzone/backlash fix) ====================
+       ========================================================================================= */
+
+    private static final double SPINNER_FAR_OFFSET   = -0.010;
+    private static final double SPINNER_CLOSE_OFFSET = -0.010;
+
+    private static final double SPINNER_OVERSHOOT = 0.010;
+    private static final double SPINNER_OVERSHOOT_TIME_S = 0.06; // 60ms
+    private static final double SPINNER_TARGET_EPS = 0.0015;
+
+    // Base target (programmed). Trim gets added in updateSpinnerServos().
+    private double spinnerBaseTarget = 0.0;
+
+    // Effective target after trim (computed)
+    private double spinnerTarget = 0.0;
+
+    private double spinnerCmd = 0.0;
+    private double spinnerLastTarget = 0.0;
+
+    private boolean spinnerInOvershoot = false;
+    private double spinnerOvershootCmd = 0.0;
+    private final ElapsedTime spinnerMoveTimer = new ElapsedTime();
+
+    /* ===================== LIVE TRIM (belt slip compensation) ===================== */
+    // >>> Changed: lower limit is now 0.00 (no negative trim allowed)
+    private static final double SPINNER_TRIM_MIN = 0.00;
+    private static final double SPINNER_TRIM_MAX = 0.20;
+
+    // >>> Changed: half speed vs before (0.12 -> 0.06)
+    private static final double SPINNER_TRIM_RATE_PER_S = 0.06;
+
+    private double spinnerTrim = 0.0;
+    private final ElapsedTime trimTimer = new ElapsedTime();
+
+    private void setSpinnerTarget(double target) {
+        spinnerBaseTarget = Range.clip(target, 0.0, 1.0);
+    }
+
+    private void updateSpinnerTrim() {
+        double dt = trimTimer.seconds();
+        trimTimer.reset();
+
+        boolean inc = gamepad2.right_bumper;
+        boolean dec = gamepad2.left_bumper;
+
+        if (inc && !dec) {
+            spinnerTrim += SPINNER_TRIM_RATE_PER_S * dt;
+        } else if (dec && !inc) {
+            spinnerTrim -= SPINNER_TRIM_RATE_PER_S * dt;
+        }
+
+        spinnerTrim = Range.clip(spinnerTrim, SPINNER_TRIM_MIN, SPINNER_TRIM_MAX);
+    }
+
+    private void updateSpinnerServos() {
+        // Effective target (base + trim)
+        spinnerTarget = Range.clip(spinnerBaseTarget + spinnerTrim, 0.0, 1.0);
+
+        // retrigger overshoot only on real target changes
+        if (Math.abs(spinnerTarget - spinnerLastTarget) > SPINNER_TARGET_EPS) {
+            spinnerLastTarget = spinnerTarget;
+
+            double dir = Math.signum(spinnerTarget - spinnerCmd);
+            if (dir == 0) dir = 1.0;
+
+            spinnerOvershootCmd = Range.clip(spinnerTarget + dir * SPINNER_OVERSHOOT, 0.0, 1.0);
+            spinnerInOvershoot = true;
+            spinnerMoveTimer.reset();
+        }
+
+        if (spinnerInOvershoot) {
+            spinnerCmd = spinnerOvershootCmd;
+
+            if (spinnerMoveTimer.seconds() >= SPINNER_OVERSHOOT_TIME_S) {
+                spinnerInOvershoot = false;
+                spinnerCmd = spinnerTarget;
+            }
+        } else {
+            spinnerCmd = spinnerTarget;
+        }
+
+        double farPos = Range.clip(spinnerCmd + SPINNER_FAR_OFFSET, 0.0, 1.0);
+        double closePos = Range.clip(spinnerCmd + SPINNER_CLOSE_OFFSET, 0.0, 1.0);
+
+        spinnerFar.setPosition(farPos);
+        spinnerCLose.setPosition(closePos);
+    }
 
     /* ========================================================================================= */
 
@@ -244,10 +328,21 @@ public class StefanUpdated extends LinearOpMode {
         ejector = hardwareMap.get(Servo.class, "ejector");
         spinnerFar = hardwareMap.get(Servo.class, "SpinnerFar");
         spinnerCLose = hardwareMap.get(Servo.class, "SpinnerClose");
+
         ejector.setDirection(Servo.Direction.REVERSE);
         ejector.setPosition(ejectorDown);
-        spinnerFar.setPosition(0);
-        spinnerCLose.setPosition(0);
+
+        setSpinnerTarget(0.0);
+        spinnerCmd = 0.0;
+        spinnerLastTarget = 0.0;
+        spinnerInOvershoot = false;
+
+        spinnerTrim = 0.0;
+        trimTimer.reset();
+
+        trajectoryAngleModifier = hardwareMap.get(Servo.class, "unghituretaoy");
+        trajectoryAngleModifier.setPosition(0.300);
+        updateSpinnerServos();
     }
 
     private void InitLL() {
@@ -273,7 +368,7 @@ public class StefanUpdated extends LinearOpMode {
         pinpoint.setStartPose(startPos);
     }
 
-    // ===================== CHASSIS ON GAMEPAD 1 =====================
+    // ===================== CHASSIS ON GAMEPAD 2 =====================
     private void SetWheelsPower() {
         double left_x = gamepad2.left_stick_x;
         double left_y = -gamepad2.left_stick_y;
@@ -351,12 +446,6 @@ public class StefanUpdated extends LinearOpMode {
         return 0;
     }
 
-    private void offsetspinner()
-    {
-        if (gamepad2.dpadLeftWasPressed())offset+=0.01;
-        if (gamepad2.dpadRightWasPressed())offset-=0.01;
-    }
-
     private void updateCulori() {
         Color1 = CuloareFinala1(colorsensorSLot1, last5Sensor1, indexSensor1);
         indexSensor1 = (indexSensor1 + 1) % 5;
@@ -397,7 +486,6 @@ public class StefanUpdated extends LinearOpMode {
         idxIntake = 0;
     }
 
-    // ULTRA-FAST intake smoothing: 3 samples, need 2
     private int processIntakeSensor(ColorSensor sensor) {
         int detected = smekerie1(sensor);
 
@@ -441,9 +529,7 @@ public class StefanUpdated extends LinearOpMode {
         int intakeColor = processIntakeSensor(colorsensorSLot1);
 
         boolean newColorDetected = (intakeColor != 0 && lastStableIntakeColor == 0);
-        if (newColorDetected) {
-            lastStableIntakeColor = intakeColor;
-        }
+        if (newColorDetected) lastStableIntakeColor = intakeColor;
 
         if (newColorDetected && !colorPending && !detectionLocked) {
             colorStartTimeMs = System.currentTimeMillis();
@@ -457,7 +543,8 @@ public class StefanUpdated extends LinearOpMode {
 
             slotIntakeIndex++;
             slotIntakeIndex = slotIntakeIndex % 3;
-            Posspinner = slotPositionsIntake[slotIntakeIndex];
+
+            setSpinnerTarget(slotPositionsIntake[slotIntakeIndex]);
 
             waitingForClear = true;
             detectionLocked = true;
@@ -468,16 +555,15 @@ public class StefanUpdated extends LinearOpMode {
         }
     }
 
-    // When full -> park at launch position and STAY until outtake finishes
     private void autoLaunchPrepLogic() {
-        if (outtakeMode) return; // during outtake we let runOuttake own Posspinner
+        if (outtakeMode) return;
 
         if (intakeMode && isSpindexerFull()) {
             launchPrepActive = true;
         }
 
         if (launchPrepActive) {
-            Posspinner = SPINNER_LAUNCH_POS; // hard hold
+            setSpinnerTarget(SPINNER_LAUNCH_POS);
         }
     }
 
@@ -521,21 +607,21 @@ public class StefanUpdated extends LinearOpMode {
         }
 
         if (gamepad1.touchpadWasPressed()) {
-            Posspinner = 0;
+            setSpinnerTarget(0);
             slotIntakeIndex = 0;
         }
 
         if (gamepad1.dpadRightWasPressed()) {
             slotIntakeIndex++;
             slotIntakeIndex = slotIntakeIndex % 3;
-            Posspinner = slotPositionsIntake[slotIntakeIndex];
+            setSpinnerTarget(slotPositionsIntake[slotIntakeIndex]);
             rotateLogicalSlotsRight();
         }
 
         if (gamepad1.dpadLeftWasPressed()) {
             slotIntakeIndex--;
             if (slotIntakeIndex < 0) slotIntakeIndex = 2;
-            Posspinner = slotPositionsIntake[slotIntakeIndex];
+            setSpinnerTarget(slotPositionsIntake[slotIntakeIndex]);
             rotateLogicalSlotsLeft();
         }
     }
@@ -556,11 +642,17 @@ public class StefanUpdated extends LinearOpMode {
         telemetry.addData("colorPending", colorPending);
         telemetry.addData("spinnerMoving", spinnerMoving);
 
-        telemetry.addData("servoPos", spinnerFar.getPosition());
+        telemetry.addData("spinnerBaseTarget", spinnerBaseTarget);
+        telemetry.addData("spinnerTrim", spinnerTrim);
+        telemetry.addData("spinnerTarget(eff)", spinnerTarget);
+
+        telemetry.addData("spinnerCmd", spinnerCmd);
+        telemetry.addData("spinnerOvershoot", spinnerInOvershoot);
+
+        telemetry.addData("SpinnerFar pos", spinnerFar.getPosition());
+        telemetry.addData("SpinnerClose pos", spinnerCLose.getPosition());
         telemetry.addData("slotIndex", slotIntakeIndex);
 
-        telemetry.addData("Sensor1 alpha", colorsensorSLot1.alpha());
-        telemetry.addData("Sensor1 hue", getHue(colorsensorSLot1.red(), colorsensorSLot1.green(), colorsensorSLot1.blue()));
         telemetry.update();
     }
 
@@ -570,13 +662,12 @@ public class StefanUpdated extends LinearOpMode {
         final int EJECTOR_UP_DELAY = 300;
         final int EJECTOR_DOWN_DELAY = 170;
         final int SPINNER_SLOT_CHANGE_DELAY = 300;
-        final int INITIAL_DELAY = 400;  // <-- lowered from 600 to 400
+        final int INITIAL_DELAY = 400;
 
         slots[0] = logicalSlots[0];
         slots[1] = logicalSlots[1];
         slots[2] = logicalSlots[2];
 
-        // Clear logical inventory (we will immediately go back to intake and recount)
         logicalSlots[0] = 0;
         logicalSlots[1] = 0;
         logicalSlots[2] = 0;
@@ -588,7 +679,7 @@ public class StefanUpdated extends LinearOpMode {
         double t = outtakeTimeout.milliseconds();
 
         if (t - prev_t >= 10 && !step1Done) {
-            Posspinner = 0.085;
+            setSpinnerTarget(0.085);
             step1Done = true;
             prev_t = 10;
         }
@@ -606,8 +697,7 @@ public class StefanUpdated extends LinearOpMode {
         }
 
         if (t >= prev_t + EJECTOR_DOWN_DELAY && !step4Done && step3Done) {
-            //Posspinner = 0.28-0.01-0.01;
-            Posspinner = 0.28;
+            setSpinnerTarget(0.28);
             step4Done = true;
             prev_t += EJECTOR_DOWN_DELAY;
         }
@@ -625,8 +715,7 @@ public class StefanUpdated extends LinearOpMode {
         }
 
         if (t >= prev_t + EJECTOR_DOWN_DELAY && !step7Done && step6Done) {
-            //Posspinner = 0.46+0.015-0.01-0.01;
-            Posspinner = 0.467;
+            setSpinnerTarget(0.467);
             step7Done = true;
             prev_t += EJECTOR_DOWN_DELAY;
         }
@@ -644,27 +733,23 @@ public class StefanUpdated extends LinearOpMode {
         }
 
         if (t >= prev_t + EJECTOR_DOWN_DELAY && !step10Done && step9Done) {
-            Posspinner = 0;
+            setSpinnerTarget(0.0);
             step10Done = true;
 
-            // ===================== AUTO RESET TO INTAKE AFTER SHOOTING =====================
             outtakeMode = false;
 
-            // Go straight back to intake without needing B/circle again
             intakeMode = true;
             spinIntake = true;
             intake.setPower(-1);
 
-            // Reset indexing so it can recount cleanly
             slotIntakeIndex = 0;
-            Posspinner = 0;
+            setSpinnerTarget(0.0);
 
             launchPrepActive = false;
             resetIntakeGatingAndFilters();
 
             ballsLoaded = 0;
             prev_t = 0;
-            // ============================================================================
         }
     }
 
@@ -679,18 +764,34 @@ public class StefanUpdated extends LinearOpMode {
 
         waitForStart();
 
+        trimTimer.reset();
+
         while (opModeIsActive()) {
 
-            // Auto park at launch when full (stays until outtake finishes)
+            // Smooth trim update (gamepad2 bumpers)
+            updateSpinnerTrim();
+
+            // NEW: gamepad2 Y -> reset trim to 0 AND force spinner to 0.00 (for tuning)
+            if (gamepad2.y) {
+                spinnerTrim = 0.0;
+                launchPrepActive = false;
+                setSpinnerTarget(0.0);
+
+                // optional: also cancel outtake so nothing overwrites while tuning
+                // outtakeMode = false;
+            }
+
+            // gamepad1 Y -> force spinner to 0.00 (base target) and cancel launch hold
+            if (gamepad1.yWasPressed()) {
+                launchPrepActive = false;
+                setSpinnerTarget(0.0);
+            }
+
+            // Launch hold (full) -> sets base target (trim still applies)
             autoLaunchPrepLogic();
 
-            // Apply offsets to servos
-            double appliedSpinnerPos = Posspinner + SPINDEXER_INTAKE_OFFSET;
-            if (outtakeMode) {
-                appliedSpinnerPos = Posspinner + SPINDEXER_OUTTAKE_OFFSET;
-            }
-            spinnerFar.setPosition(appliedSpinnerPos+offset);
-            spinnerCLose.setPosition(appliedSpinnerPos-offset);
+            // Drive servos via controller every loop
+            updateSpinnerServos();
 
             servoLogic();
             SetWheelsPower();
@@ -698,8 +799,6 @@ public class StefanUpdated extends LinearOpMode {
 
             pinpoint.update();
             // updateTurretAim();
-
-
 
             if (gamepad1.crossWasPressed() && !gamepad1.crossWasReleased()) {
                 intake.setPower(1);
@@ -715,7 +814,7 @@ public class StefanUpdated extends LinearOpMode {
                 intake.setPower(spinIntake ? -1 : 0);
 
                 ballsLoaded = 0;
-                Posspinner = 0;
+                setSpinnerTarget(0);
                 slotIntakeIndex = 0;
 
                 logicalSlots[0] = 0;
@@ -726,12 +825,10 @@ public class StefanUpdated extends LinearOpMode {
                 resetIntakeGatingAndFilters();
             }
 
-            // Only run intake detection if we are not parked at launch
             if (intakeMode && !outtakeMode && !launchPrepActive) {
                 updateCulori();
                 colorDrivenSpinnerLogicServos();
             } else if (intakeMode && launchPrepActive) {
-                // still update debug colors if you want
                 updateCulori();
             }
 
@@ -745,8 +842,8 @@ public class StefanUpdated extends LinearOpMode {
                 intake.setPower(0);
                 outtakeTimeout.reset();
 
-                // once outtake starts, we don't want launch-hold logic to overwrite Posspinner
-                // (it will be cleared at the end of the sequence)
+                launchPrepActive = false;
+
                 step1Done = false;
                 step2Done = false;
                 step3Done = false;
@@ -771,8 +868,6 @@ public class StefanUpdated extends LinearOpMode {
             if (outtakeMode) {
                 runOuttake();
             }
-
-            offsetspinner();
 
             updateTelemetry();
             idle();

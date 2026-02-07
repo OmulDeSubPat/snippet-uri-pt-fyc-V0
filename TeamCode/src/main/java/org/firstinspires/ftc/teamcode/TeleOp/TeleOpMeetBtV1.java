@@ -261,7 +261,7 @@ public class TeleOpMeetBtV1 extends LinearOpMode {
         trajectoryAngleModifier.setPosition(position);
     }
 
-    public void disableIfNotInLaunchZone(){
+   /* public void disableIfNotInLaunchZone(){
         double robotX = pose.getX();
         double robotY = pose.getY();
         double d1,d2,d3;
@@ -282,7 +282,7 @@ public class TeleOpMeetBtV1 extends LinearOpMode {
         } else {
             if(!aimingEnabled) enableAiming();
         }
-    }
+    }*/
     private double sign(double x1,double y1,double x2,double y2,double x3,double y3){
         return (x1-x3)*(y2-y3)-(x2-x3)*(y1-y3);
     }
@@ -653,9 +653,9 @@ public class TeleOpMeetBtV1 extends LinearOpMode {
             }
 
             telemetry.addData("timp_outtake", outtakeTimeout.time());
-            telemetry.addData("x", pose.getX());
-            telemetry.addData("y", pose.getY());
-            telemetry.addData("heading", pose.getHeading());
+        //    telemetry.addData("x", pose.getX());
+         //   telemetry.addData("y", pose.getY());
+          //  telemetry.addData("heading", pose.getHeading());
             telemetry.addData("unghiSPinner", spinnerFar.getPosition());
             telemetry.addData("balls", detectedBalls);
 
@@ -914,10 +914,10 @@ public class TeleOpMeetBtV1 extends LinearOpMode {
 
             servoLogic();
             SetWheelsPower();
-            pinpoint.update();
+      //      pinpoint.update();
 //            pose = pinpoint.getPose();
 //            disableIfNotInLaunchZone();
-            updateTurretAim();
+          //  updateTurretAim();
             updateTelemetry();
 //            if(aimingEnabled){
 //                computeParameters();

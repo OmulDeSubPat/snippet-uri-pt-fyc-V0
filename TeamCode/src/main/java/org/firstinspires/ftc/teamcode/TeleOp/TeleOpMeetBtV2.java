@@ -389,9 +389,9 @@ public class TeleOpMeetBtV2 extends LinearOpMode {
 
 
     private void SetWheelsPower() {
-        double left_x = gamepad2.left_stick_x;
-        double left_y = -gamepad2.left_stick_y; // forward is negative
-        double right_x = gamepad2.right_stick_x;
+        double left_x = gamepad1.left_stick_x;
+        double left_y = -gamepad1.left_stick_y; // forward is negative
+        double right_x = gamepad1.right_stick_x;
 
         double front_left_pw = left_y + left_x + right_x;
         double back_left_pw = left_y - left_x + right_x;
@@ -692,194 +692,194 @@ public class TeleOpMeetBtV2 extends LinearOpMode {
 
 
     }
-    //    private void runOuttake() {
-//        intake.setPower(1);
-//        final int EJECTOR_UP_DELAY = 200;
-//        final int EJECTOR_DOWN_DELAY = 150;
-//        final int SPINNER_SLOT_CHANGE_DELAY = 300;
-//        final int INITIAL_DELAY = 200;
-//
-//        slots[0] = Color1;
-//        slots[1] = Color2;
-//        slots[2] = Color3;
-//
-//        Color1 = 0;
-//        Color2 = 0;
-//        Color3 = 0;
-//
-//
-//        double t = outtakeTimeout.milliseconds();
-//        if(t >= prev_t_outtake){
-//            switch (outtakeStep++) {
-//                case 0:
-//                    Posspinner = 0.085;
-//                    prev_t_outtake = t + INITIAL_DELAY;
-//                    break;
-//                case 1:
-//                case 7:
-//                case 4:
-//                    ejector.setPosition(ejectorUp);
-//                    prev_t_outtake = t + EJECTOR_UP_DELAY;
-//                    break;
-//                case 2:
-//                case 8:
-//                case 5:
-//                    ejector.setPosition(ejectorDown);
-//                    prev_t_outtake = t + EJECTOR_DOWN_DELAY;
-//                    break;
-//                case 3:
-//                    Posspinner = 0.28;
-//                    prev_t_outtake = t + SPINNER_SLOT_CHANGE_DELAY;
-//                    break;
-//                case 6:
-//                    Posspinner = 0.46;
-//                    prev_t_outtake = t + SPINNER_SLOT_CHANGE_DELAY;
-//                    break;
-//                case 9:
-//                    Posspinner = 0;
-//                    outtakeStep = 0;
-//                    outtakeMode = false;
-//                    intakeMode = true;
-//                    ballsLoaded = 0;
-//                    prev_t_outtake = 0;
-//                    break;
-//            }
-//        }
-//    }
     private void runOuttake() {
-        // keep feeding while shooting
         intake.setPower(1);
+        final int EJECTOR_UP_DELAY = 200;
+        final int EJECTOR_DOWN_DELAY = 150;
+        final int SPINNER_SLOT_CHANGE_DELAY = 300;
+        final int INITIAL_DELAY = 200;
 
-        long now = System.currentTimeMillis();
-        long dt = now - stepStartMs;
+        slots[0] = Color1;
+        slots[1] = Color2;
+        slots[2] = Color3;
 
-        switch (outtakeStep) {
+        Color1 = 0;
+        Color2 = 0;
+        Color3 = 0;
 
-            case 0:
-                // snapshot inventory once
-                slots[0] = logicalSlots[0];
-                slots[1] = logicalSlots[1];
-                slots[2] = logicalSlots[2];
 
-                // clear logical so intake recounts after
-                logicalSlots[0] = 0;
-                logicalSlots[1] = 0;
-                logicalSlots[2] = 0;
-
-                Color1 = 0;
-                Color2 = 0;
-                Color3 = 0;
-
-                // start at launch position
-                Posspinner = 0.085;
-
-                rpmInRangeSinceMs = 0;
-                startStep(1);
-                break;
-
-            case 1:
-                if (dt >= OUTTAKE_INITIAL_DELAY_MS) startStep(2);
-                break;
-
-            case 2:
-                // SHOOT #1 only when rpm stable in range
-                if (rpmInRangeStable()) {
+        double t = outtakeTimeout.milliseconds();
+        if(t >= prev_t_outtake){
+            switch (outtakeStep++) {
+                case 0:
+                    Posspinner = 0.085;
+                    prev_t_outtake = t + INITIAL_DELAY;
+                    break;
+                case 1:
+                case 7:
+                case 4:
                     ejector.setPosition(ejectorUp);
-                    startStep(3);
-                }
-                break;
-
-            case 3:
-                if (dt >= OUTTAKE_EJECTOR_UP_MS) {
+                    prev_t_outtake = t + EJECTOR_UP_DELAY;
+                    break;
+                case 2:
+                case 8:
+                case 5:
                     ejector.setPosition(ejectorDown);
-                    startStep(4);
-                }
-                break;
-
-            case 4:
-                if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-                    Posspinner = 0.275;
-                    startStep(5);
-                }
-                break;
-
-            case 5:
-                if (dt >= OUTTAKE_SPINNER_MOVE_MS) {
-                    rpmInRangeSinceMs = 0;
-                    startStep(6);
-                }
-                break;
-
-            case 6:
-                // SHOOT #2
-                if (rpmInRangeStable()) {
-                    ejector.setPosition(ejectorUp);
-                    startStep(7);
-                }
-                break;
-
-            case 7:
-                if (dt >= OUTTAKE_EJECTOR_UP_MS) {
-                    ejector.setPosition(ejectorDown);
-                    startStep(8);
-                }
-                break;
-
-            case 8:
-                if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-                    Posspinner = 0.465;
-                    startStep(9);
-                }
-                break;
-
-            case 9:
-                if (dt >= OUTTAKE_SPINNER_MOVE_MS) {
-                    rpmInRangeSinceMs = 0;
-                    startStep(10);
-                }
-                break;
-
-            case 10:
-                // SHOOT #3
-                if (rpmInRangeStable()) {
-                    ejector.setPosition(ejectorUp);
-                    startStep(11);
-                }
-                break;
-
-            case 11:
-                if (dt >= OUTTAKE_EJECTOR_UP_MS) {
-                    ejector.setPosition(ejectorDown);
-                    startStep(12);
-                }
-                break;
-
-            case 12:
-                if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-
-                    // end
+                    prev_t_outtake = t + EJECTOR_DOWN_DELAY;
+                    break;
+                case 3:
+                    Posspinner = 0.28;
+                    prev_t_outtake = t + SPINNER_SLOT_CHANGE_DELAY;
+                    break;
+                case 6:
+                    Posspinner = 0.46;
+                    prev_t_outtake = t + SPINNER_SLOT_CHANGE_DELAY;
+                    break;
+                case 9:
                     Posspinner = 0;
-
-                    outtakeMode = false;
-
-                    intakeMode = false;
-                    spinIntake = false;
-                    intake.setPower(0);
-
-                    slotIntakeIndex = 0;
-                    Posspinner = 0;
-
-                    launchPrepActive = false;
-                    resetIntakeGatingAndFilters();
-
-                    // reset shooter FSM
                     outtakeStep = 0;
-                    stepStartMs = 0;
-                    rpmInRangeSinceMs = 0;
-                }
-                break;
+                    outtakeMode = false;
+                    intakeMode = true;
+                    ballsLoaded = 0;
+                    prev_t_outtake = 0;
+                    break;
+            }
         }
     }
+    //    private void runOuttake() {
+//        // keep feeding while shooting
+//        intake.setPower(1);
+//
+//        long now = System.currentTimeMillis();
+//        long dt = now - stepStartMs;
+//
+//        switch (outtakeStep) {
+//
+//            case 0:
+//                // snapshot inventory once
+//                slots[0] = logicalSlots[0];
+//                slots[1] = logicalSlots[1];
+//                slots[2] = logicalSlots[2];
+//
+//                // clear logical so intake recounts after
+//                logicalSlots[0] = 0;
+//                logicalSlots[1] = 0;
+//                logicalSlots[2] = 0;
+//
+//                Color1 = 0;
+//                Color2 = 0;
+//                Color3 = 0;
+//
+//                // start at launch position
+//                Posspinner = 0.085;
+//
+//                rpmInRangeSinceMs = 0;
+//                startStep(1);
+//                break;
+//
+//            case 1:
+//                if (dt >= OUTTAKE_INITIAL_DELAY_MS) startStep(2);
+//                break;
+//
+//            case 2:
+//                // SHOOT #1 only when rpm stable in range
+//                if (rpmInRangeStable()) {
+//                    ejector.setPosition(ejectorUp);
+//                    startStep(3);
+//                }
+//                break;
+//
+//            case 3:
+//                if (dt >= OUTTAKE_EJECTOR_UP_MS) {
+//                    ejector.setPosition(ejectorDown);
+//                    startStep(4);
+//                }
+//                break;
+//
+//            case 4:
+//                if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
+//                    Posspinner = 0.275;
+//                    startStep(5);
+//                }
+//                break;
+//
+//            case 5:
+//                if (dt >= OUTTAKE_SPINNER_MOVE_MS) {
+//                    rpmInRangeSinceMs = 0;
+//                    startStep(6);
+//                }
+//                break;
+//
+//            case 6:
+//                // SHOOT #2
+//                if (rpmInRangeStable()) {
+//                    ejector.setPosition(ejectorUp);
+//                    startStep(7);
+//                }
+//                break;
+//
+//            case 7:
+//                if (dt >= OUTTAKE_EJECTOR_UP_MS) {
+//                    ejector.setPosition(ejectorDown);
+//                    startStep(8);
+//                }
+//                break;
+//
+//            case 8:
+//                if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
+//                    Posspinner = 0.465;
+//                    startStep(9);
+//                }
+//                break;
+//
+//            case 9:
+//                if (dt >= OUTTAKE_SPINNER_MOVE_MS) {
+//                    rpmInRangeSinceMs = 0;
+//                    startStep(10);
+//                }
+//                break;
+//
+//            case 10:
+//                // SHOOT #3
+//                if (rpmInRangeStable()) {
+//                    ejector.setPosition(ejectorUp);
+//                    startStep(11);
+//                }
+//                break;
+//
+//            case 11:
+//                if (dt >= OUTTAKE_EJECTOR_UP_MS) {
+//                    ejector.setPosition(ejectorDown);
+//                    startStep(12);
+//                }
+//                break;
+//
+//            case 12:
+//                if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
+//
+//                    // end
+//                    Posspinner = 0;
+//
+//                    outtakeMode = false;
+//
+//                    intakeMode = false;
+//                    spinIntake = false;
+//                    intake.setPower(0);
+//
+//                    slotIntakeIndex = 0;
+//                    Posspinner = 0;
+//
+//                    launchPrepActive = false;
+//                    resetIntakeGatingAndFilters();
+//
+//                    // reset shooter FSM
+//                    outtakeStep = 0;
+//                    stepStartMs = 0;
+//                    rpmInRangeSinceMs = 0;
+//                }
+//                break;
+//        }
+//    }
     private void resetIntakeGatingAndFilters() {
         waitingForClear = false;
         detectionLocked = false;
@@ -915,7 +915,7 @@ public class TeleOpMeetBtV2 extends LinearOpMode {
             servoLogic();
             SetWheelsPower();
             pinpoint.update();
-//            pose = pinpoint.getPose();
+            pose = pinpoint.getPose();
 //            disableIfNotInLaunchZone();
             updateTurretAim();
             updateTelemetry();

@@ -15,6 +15,7 @@ import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.robotcore.util.Range;
 
 @Autonomous(name = "&AutoRedFar//e stramb cosu rosu sau albastru", group = "Autonomous")
 @Configurable
@@ -76,7 +77,7 @@ public class AutoTibiRed extends OpMode {
 
     // imported from TeleOp shooter
     public static double TARGET_RPM = 3055.0;
-    public static double kP_v = 15;
+    public static double kP_v = 14.8;
     public static final double kI_v = 0.0;
     public static final double kD_v = 0.0;
     public static double kF_v = 12.8;
@@ -109,7 +110,7 @@ public class AutoTibiRed extends OpMode {
     final double ejectorUp = 0.03;
 
     final double[] slotPositionsIntake = {0, 0.19, 0.38};
-    double Posspinner = 0;
+   // double Posspinner = 0;
 
     /* ===================== SPINDEXER OFFSETS / POSITIONS ===================== */
     private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015;
@@ -160,6 +161,57 @@ public class AutoTibiRed extends OpMode {
     private Pose robotPose;
 
 
+    /* ================= SPINNER SERVO CONTROLLER ================= */
+
+    private static final double SPINNER_FAR_OFFSET   = -0.010;
+    private static final double SPINNER_CLOSE_OFFSET = -0.010;
+
+    private static final double SPINNER_OVERSHOOT = 0.010;
+    private static final double SPINNER_OVERSHOOT_TIME_S = 0.06;
+    private static final double SPINNER_TARGET_EPS = 0.0015;
+
+    private double spinnerTarget = 0.0;
+    private double spinnerCmd = 0.0;
+    private double spinnerLastTarget = 0.0;
+
+    private boolean spinnerInOvershoot = false;
+    private double spinnerOvershootCmd = 0.0;
+    private final ElapsedTime spinnerMoveTimer = new ElapsedTime();
+
+    private void setSpinnerTarget(double target) {
+        spinnerTarget = Range.clip(target, 0.0, 1.0);
+    }
+
+    private void updateSpinnerServos() {
+        if (Math.abs(spinnerTarget - spinnerLastTarget) > SPINNER_TARGET_EPS) {
+            spinnerLastTarget = spinnerTarget;
+
+            double dir = Math.signum(spinnerTarget - spinnerCmd);
+            if (dir == 0) dir = 1.0;
+
+            spinnerOvershootCmd = Range.clip(spinnerTarget + dir * SPINNER_OVERSHOOT, 0.0, 1.0);
+            spinnerInOvershoot = true;
+            spinnerMoveTimer.reset();
+        }
+
+        if (spinnerInOvershoot) {
+            spinnerCmd = spinnerOvershootCmd;
+            if (spinnerMoveTimer.seconds() >= SPINNER_OVERSHOOT_TIME_S) {
+                spinnerInOvershoot = false;
+                spinnerCmd = spinnerTarget;
+            }
+        } else {
+            spinnerCmd = spinnerTarget;
+        }
+
+        double farPos   = Range.clip(spinnerCmd + SPINNER_FAR_OFFSET,   0.0, 1.0);
+        double closePos = Range.clip(spinnerCmd + SPINNER_CLOSE_OFFSET, 0.0, 1.0);
+
+        spinnerFar.setPosition(farPos);
+        spinnerCLose.setPosition(closePos);
+    }
+
+
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
         boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 50.0));
@@ -179,7 +231,7 @@ public class AutoTibiRed extends OpMode {
     }
 
     private static final long OUTTAKE_INITIAL_DELAY_MS = 50;
-    private static final long OUTTAKE_EJECTOR_UP_MS     = 250;
+    private static final long OUTTAKE_EJECTOR_UP_MS     = 300;
     private static final long OUTTAKE_EJECTOR_DOWN_MS   = 350;
     private static final long OUTTAKE_SPINNER_MOVE_MS   = 100;
 
@@ -235,7 +287,7 @@ public class AutoTibiRed extends OpMode {
         outtakeMode = false;
         spinIntake = false;
 
-        Posspinner = 0;
+        setSpinnerTarget(0);
         slotIntakeIndex = 0;
 
         launchPrepActive = false;
@@ -259,6 +311,7 @@ public class AutoTibiRed extends OpMode {
 
         updateFlywheel();
         updateCulori();
+        updateSpinnerServos();
         robotPose = follower.getPose();
 
 
@@ -271,12 +324,6 @@ public class AutoTibiRed extends OpMode {
         autoLaunchPrepLogic();
 
         // apply offsets to spindexer servos
-        double appliedSpinnerPos = Posspinner + SPINDEXER_INTAKE_OFFSET;
-        if (outtakeMode) {
-            appliedSpinnerPos = Posspinner + SPINDEXER_OUTTAKE_OFFSET;
-        }
-        spinnerFar.setPosition(appliedSpinnerPos);
-        spinnerCLose.setPosition(appliedSpinnerPos);
 
         // ===================== AUTONOMOUS FSM =====================
         switch (autoStage) {
@@ -285,7 +332,7 @@ public class AutoTibiRed extends OpMode {
             case 0:
                 if (outtakeMode) break; // safety
                 if (!pathStarted) {
-                    follower.followPath(paths.Path0, 0.7, true);
+                    follower.followPath(paths.Path0, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -333,7 +380,7 @@ public class AutoTibiRed extends OpMode {
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.3, true);
+                    follower.followPath(paths.Path2, 0.25, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -347,7 +394,7 @@ public class AutoTibiRed extends OpMode {
                 if (outtakeMode) break;
                 intakeMode = false;
                 spinIntake = false;
-                intake.setPower(0);
+                intake.setPower(-1);
 
                 if (!pathStarted) {
                     follower.followPath(paths.Path3, 1.0,true);
@@ -363,6 +410,7 @@ public class AutoTibiRed extends OpMode {
 
             // Stage 5: SHOOT after Path3 (BLOCK)
             case 5:
+                intake.setPower(0);
                 if (!shootStageStarted) {
                     if (delayDone()) {
                         startOuttake();
@@ -391,7 +439,7 @@ public class AutoTibiRed extends OpMode {
                 break;
 
             // Stage 7: run Path5
-            case 7:
+        /*    case 7:
                 if (outtakeMode) break;
                 if (!pathStarted) {
                     follower.followPath(paths.Path5, 0.7, true);
@@ -433,10 +481,11 @@ public class AutoTibiRed extends OpMode {
                     }
                 }
                 break;
-
+*/
             // Stage 10: DONE
             case 10:
                 intake.setPower(0);
+                requestOpModeStop();
                 break;
         }
 
@@ -518,7 +567,7 @@ public class AutoTibiRed extends OpMode {
                 Color3 = 0;
 
                 // start at launch position
-                Posspinner = 0.085;
+                setSpinnerTarget(0.085);
 
                 rpmInRangeSinceMs = 0;
                 startStep(1);
@@ -545,7 +594,7 @@ public class AutoTibiRed extends OpMode {
 
             case 4:
                 if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-                    Posspinner = 0.28;
+                    setSpinnerTarget(0.28);
                     startStep(5);
                 }
                 break;
@@ -574,7 +623,7 @@ public class AutoTibiRed extends OpMode {
 
             case 8:
                 if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-                    Posspinner = 0.46;
+                    setSpinnerTarget(0.46);
                     startStep(9);
                 }
                 break;
@@ -605,7 +654,7 @@ public class AutoTibiRed extends OpMode {
                 if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
 
                     // end
-                    Posspinner = 0;
+                    setSpinnerTarget(0);
 
                     outtakeMode = false;
 
@@ -614,7 +663,7 @@ public class AutoTibiRed extends OpMode {
                     intake.setPower(0);
 
                     slotIntakeIndex = 0;
-                    Posspinner = 0;
+                    setSpinnerTarget(0);
 
                     launchPrepActive = false;
                     resetIntakeGatingAndFilters();
@@ -771,7 +820,7 @@ public class AutoTibiRed extends OpMode {
 
             slotIntakeIndex++;
             slotIntakeIndex = slotIntakeIndex % 3;
-            Posspinner = slotPositionsIntake[slotIntakeIndex];
+            setSpinnerTarget(slotPositionsIntake[slotIntakeIndex]);
 
             waitingForClear = true;
             detectionLocked = true;
@@ -790,7 +839,7 @@ public class AutoTibiRed extends OpMode {
             launchPrepActive = true;
         }
         if (launchPrepActive) {
-            Posspinner = SPINNER_LAUNCH_POS;
+            setSpinnerTarget(SPINNER_LAUNCH_POS);
         }
     }
 
@@ -804,11 +853,11 @@ public class AutoTibiRed extends OpMode {
             Path0 = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(87.809, 8.027),
-                            new Pose(79.5, 20.2)
+                            new Pose(79.5, 16)
                     ))
                     .setLinearHeadingInterpolation(
                             Math.toRadians(90),
-                            Math.toRadians(60)   // ← FIXED
+                            Math.toRadians(65)   // ← FIXED
                     )
                     .build();
 
@@ -819,7 +868,7 @@ public class AutoTibiRed extends OpMode {
                             new Pose(75, 31.5)
                     ))
                     .setLinearHeadingInterpolation(
-                            Math.toRadians(60),   // ← FIXED
+                            Math.toRadians(63),   // ← FIXED
                             Math.toRadians(0)
                     )
                     .build();
@@ -837,11 +886,11 @@ public class AutoTibiRed extends OpMode {
             Path3 = follower.pathBuilder()
                     .addPath(new BezierLine(
                             new Pose(100, 31.5),
-                            new Pose(79.5, 20.2)
+                            new Pose(79.5, 16)
                     ))
                     .setLinearHeadingInterpolation(
                             Math.toRadians(0),
-                            Math.toRadians(60)   // ← FIXED
+                            Math.toRadians(63)   // ← FIXED
                     )
                     .build();
 

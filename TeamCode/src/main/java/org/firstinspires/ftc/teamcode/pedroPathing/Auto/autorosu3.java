@@ -17,9 +17,9 @@ import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
 import com.qualcomm.robotcore.util.Range;
 
-@Autonomous(name = "&AutoBlueFar", group = "Autonomous")
+@Autonomous(name = "&AutoRedFar3", group = "Autonomous")
 @Configurable
-public class AutoTibi extends OpMode {
+public class autorosu3 extends OpMode {
 
     /* ===================== TELEMETRY ===================== */
     private TelemetryManager panelsTelemetry;
@@ -67,8 +67,6 @@ public class AutoTibi extends OpMode {
 
     /* ===================== HARDWARE ===================== */
     DcMotor intake;
-    DcMotorEx tureta;
-
     DcMotorEx flywheel;
     Servo spinnerCLose, spinnerFar, ejector;
     ColorSensor colorsensorSLot1, colorsensorSLot2, colorsensorSLot3;
@@ -83,7 +81,6 @@ public class AutoTibi extends OpMode {
     public static final double kI_v = 0.0;
     public static final double kD_v = 0.0;
     public static double kF_v = 12.8;
-
     private double targetTPS;
     private double rpm = 0.0;
 
@@ -113,7 +110,7 @@ public class AutoTibi extends OpMode {
     final double ejectorUp = 0.03;
 
     final double[] slotPositionsIntake = {0, 0.19, 0.38};
-    double Posspinner = 0;
+    // double Posspinner = 0;
 
     /* ===================== SPINDEXER OFFSETS / POSITIONS ===================== */
     private static final double SPINDEXER_OUTTAKE_OFFSET = -0.015;
@@ -148,12 +145,6 @@ public class AutoTibi extends OpMode {
 
     private int outtakeStep = 0;
     private long stepStartMs = 0;
-
-    private static final double RPM_TOL = 60.0;
-    private static final long RPM_STABLE_MS = 80;
-    private long rpmInRangeSinceMs = 0;
-    private Pose robotPose;
-
     /* ===================== FLYWHEEL KICK START ===================== */
 
     public static double KICK_RPM = 3600;     // overshoot target
@@ -164,103 +155,13 @@ public class AutoTibi extends OpMode {
     private ElapsedTime kickTimer = new ElapsedTime();
 
 
-
-    private boolean rpmInRangeStable() {
-        // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 60.0));
-        long now = System.currentTimeMillis();
-
-        if (!inRange) {
-            rpmInRangeSinceMs = 0;
-            return false;
-        }
-        if (rpmInRangeSinceMs == 0) rpmInRangeSinceMs = now;
-        return (now - rpmInRangeSinceMs) >= RPM_STABLE_MS;
-    }
-
-    private void startStep(int newStep) {
-        outtakeStep = newStep;
-        stepStartMs = System.currentTimeMillis();
-    }
-
-    private static final long OUTTAKE_INITIAL_DELAY_MS = 50;
-    private static final long OUTTAKE_EJECTOR_UP_MS     = 250;
-    private static final long OUTTAKE_EJECTOR_DOWN_MS   = 350;
-    private static final long OUTTAKE_SPINNER_MOVE_MS   = 100;
-
-    // latch so shoot stages BLOCK until outtakeMode finishes
-    private boolean shootStageStarted = false;
-
-    /* ===================== INIT ===================== */
-    @Override
-    public void init() {
-        panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
-
-        follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(56.327, 8.027, Math.toRadians(90)));
-        paths = new Paths(follower);
-
-        intake = hardwareMap.get(DcMotor.class, "intake");
-        flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
-        flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-        flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
-        tureta = hardwareMap.get(DcMotorEx.class,"tureta");
-        tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-
-        kickActive = true;
-        kickTimer.reset();
+    private static final double RPM_TOL = 50.0;
+    private static final long RPM_STABLE_MS = 80;
+    private long rpmInRangeSinceMs = 0;
+    private Pose robotPose;
 
 
-        // you had REVERSE in your code
-        intake.setDirection(DcMotorSimple.Direction.REVERSE);
-
-        spinnerCLose = hardwareMap.get(Servo.class, "SpinnerClose");
-        spinnerFar   = hardwareMap.get(Servo.class, "SpinnerFar");
-        ejector      = hardwareMap.get(Servo.class, "ejector");
-
-        trajectoryAngleModifier = hardwareMap.get(Servo.class, "unghituretaoy");
-        trajectoryAngleModifier.setPosition(0.0600);
-
-        colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
-        colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
-        colorsensorSLot3 = hardwareMap.colorSensor.get("Color3");
-
-        ejector.setDirection(Servo.Direction.REVERSE);
-        ejector.setPosition(ejectorDown);
-
-        spinnerFar.setPosition(0);
-        spinnerCLose.setPosition(0);
-
-        autoDelay.reset();
-
-        // Start state
-        autoStage = 0;
-        pathState = 0;
-        pathStarted = false;
-
-        intakeMode = false;
-        outtakeMode = false;
-        spinIntake = false;
-
-        setSpinnerTarget(0);
-        slotIntakeIndex = 0;
-
-        launchPrepActive = false;
-        resetIntakeGatingAndFilters();
-
-        logicalSlots[0] = logicalSlots[1] = logicalSlots[2] = 0;
-
-        // shooter fsm reset
-        outtakeStep = 0;
-        stepStartMs = 0;
-        rpmInRangeSinceMs = 0;
-
-        shootStageStarted = false;
-        waiting = false;
-    }
-    /* ===================== SPINNER SERVO CONTROLLER ===================== */
+    /* ================= SPINNER SERVO CONTROLLER ================= */
 
     private static final double SPINNER_FAR_OFFSET   = -0.010;
     private static final double SPINNER_CLOSE_OFFSET = -0.010;
@@ -311,6 +212,97 @@ public class AutoTibi extends OpMode {
     }
 
 
+    private boolean rpmInRangeStable() {
+        // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 50.0));
+        long now = System.currentTimeMillis();
+
+        if (!inRange) {
+            rpmInRangeSinceMs = 0;
+            return false;
+        }
+        if (rpmInRangeSinceMs == 0) rpmInRangeSinceMs = now;
+        return (now - rpmInRangeSinceMs) >= RPM_STABLE_MS;
+    }
+
+    private void startStep(int newStep) {
+        outtakeStep = newStep;
+        stepStartMs = System.currentTimeMillis();
+    }
+
+    private static final long OUTTAKE_INITIAL_DELAY_MS = 50;
+    private static final long OUTTAKE_EJECTOR_UP_MS     = 300;
+    private static final long OUTTAKE_EJECTOR_DOWN_MS   = 350;
+    private static final long OUTTAKE_SPINNER_MOVE_MS   = 100;
+
+    // latch so shoot stages BLOCK until outtakeMode finishes
+    private boolean shootStageStarted = false;
+
+    /* ===================== INIT ===================== */
+    @Override
+    public void init() {
+        panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
+        kickActive = true;
+        kickTimer.reset();
+
+
+        follower = Constants.createFollower(hardwareMap);
+        follower.setStartingPose(new Pose(87.673, 8.027, Math.toRadians(90)));
+        paths = new Paths(follower);
+
+        intake = hardwareMap.get(DcMotor.class, "intake");
+        flywheel = hardwareMap.get(DcMotorEx.class, "flywheel");
+        flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+        flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
+
+        // you had REVERSE in your code
+        intake.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        spinnerCLose = hardwareMap.get(Servo.class, "SpinnerClose");
+        spinnerFar   = hardwareMap.get(Servo.class, "SpinnerFar");
+        ejector      = hardwareMap.get(Servo.class, "ejector");
+
+        trajectoryAngleModifier = hardwareMap.get(Servo.class, "unghituretaoy");
+        trajectoryAngleModifier.setPosition(0.06);
+
+        colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
+        colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
+        colorsensorSLot3 = hardwareMap.colorSensor.get("Color3");
+
+        ejector.setDirection(Servo.Direction.REVERSE);
+        ejector.setPosition(ejectorDown);
+
+        spinnerFar.setPosition(0);
+        spinnerCLose.setPosition(0);
+
+        autoDelay.reset();
+
+        // Start state
+        autoStage = 0;
+        pathState = 0;
+        pathStarted = false;
+
+        intakeMode = false;
+        outtakeMode = false;
+        spinIntake = false;
+
+        setSpinnerTarget(0);
+        slotIntakeIndex = 0;
+
+        launchPrepActive = false;
+        resetIntakeGatingAndFilters();
+
+        logicalSlots[0] = logicalSlots[1] = logicalSlots[2] = 0;
+
+        // shooter fsm reset
+        outtakeStep = 0;
+        stepStartMs = 0;
+        rpmInRangeSinceMs = 0;
+
+        shootStageStarted = false;
+        waiting = false;
+    }
 
     /* ===================== LOOP ===================== */
     @Override
@@ -320,7 +312,6 @@ public class AutoTibi extends OpMode {
         updateFlywheel();
         updateCulori();
         updateSpinnerServos();
-
         robotPose = follower.getPose();
 
 
@@ -332,8 +323,7 @@ public class AutoTibi extends OpMode {
         // auto park at launch when full
         autoLaunchPrepLogic();
 
-
-
+        // apply offsets to spindexer servos
 
         // ===================== AUTONOMOUS FSM =====================
         switch (autoStage) {
@@ -383,22 +373,21 @@ public class AutoTibi extends OpMode {
                 break;
 
             // Stage 3: run Path2 (intake ON)
-            case 3:
+         /*   case 3:
                 if (outtakeMode) break;
                 intakeMode = true;
                 spinIntake = true;
-                intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.25, true);
+                    follower.followPath(paths.Path2, 0.5, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
                     pathStarted = false;
                     autoStage = 4;
                 }
-                break;
-
+                break;*/
+/*
             // Stage 4: run Path3 (intake OFF)
             case 4:
                 if (outtakeMode) break;
@@ -448,13 +437,54 @@ public class AutoTibi extends OpMode {
                 }
                 break;
 
-            // Stage 7:
+            // Stage 7: run Path5
+        /*    case 7:
+                if (outtakeMode) break;
+                if (!pathStarted) {
+                    follower.followPath(paths.Path5, 0.7, true);
+                    pathStarted = true;
+                }
+                if (!follower.isBusy()) {
+                    pathStarted = false;
+                    autoStage = 8;
+                }
+                break;
 
-            // Stage 10: DONE
+            // Stage 8: run Path6
+            case 8:
+                if (outtakeMode) break;
+                if (!pathStarted) {
+                    follower.followPath(paths.Path6, true);
+                    pathStarted = true;
+                }
+                if (!follower.isBusy()) {
+                    pathStarted = false;
+                    waiting = false;
+                    shootStageStarted = false;
+                    autoStage = 9; // shoot after Path6
+                }
+                break;
+
+            // Stage 9: SHOOT after Path6 (BLOCK)
+            case 9:
+                if (!shootStageStarted) {
+                    if (delayDone()) {
+                        startOuttake();
+                        shootStageStarted = true;
+                    }
+                } else {
+                    if (!outtakeMode) {
+                        shootStageStarted = false;
+                        waiting = false;
+                        autoStage = 10;
+                    }
+                }
+                break;
+*/
+            // Stage 10: DONE //should be case 3
             case 10:
                 intake.setPower(0);
                 requestOpModeStop();
-
                 break;
         }
 
@@ -489,7 +519,7 @@ public class AutoTibi extends OpMode {
         spinIntake = false;
 
         // feeding during shooting (with REVERSE direction, power(1) is "reverse")
-        intake.setPower(0);
+        intake.setPower(1);
 
         // prevent launch-hold overwriting during sequence
         launchPrepActive = false;
@@ -502,25 +532,13 @@ public class AutoTibi extends OpMode {
 
     /* ===================== FLYWHEEL ===================== */
     private void updateFlywheel() {
+        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
 
-        boolean inKick = kickActive && kickTimer.seconds() < KICK_TIME;
-
-        double rpmTarget = inKick ? KICK_RPM : TARGET_RPM;
-        double kF = inKick ? (kF_v + KICK_F_EXTRA) : kF_v;
-
-        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF);
-
-        targetTPS = rpmTarget * FLYWHEEL_TICKS_PER_REV / 60.0;
+        targetTPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
         flywheel.setVelocity(targetTPS);
 
         rpm = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
-
-        // turn kick off once real target reached
-        if (kickActive && rpm >= TARGET_RPM - 50) {
-            kickActive = false;
-        }
     }
-
 
     /* ===================== OUTTAKE SEQUENCE (TeleOp shooter FSM) ===================== */
     private void runOuttake() {
@@ -803,7 +821,6 @@ public class AutoTibi extends OpMode {
             slotIntakeIndex = slotIntakeIndex % 3;
             setSpinnerTarget(slotPositionsIntake[slotIntakeIndex]);
 
-
             waitingForClear = true;
             detectionLocked = true;
             spinnerMoving = true;
@@ -830,46 +847,61 @@ public class AutoTibi extends OpMode {
         public PathChain Path0, Path1, Path2, Path3, Path4, Path5, Path6;
 
         public Paths(Follower follower) {
+
+            // ===== Path0: Start → First shooting =====
             Path0 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(56.191, 8.027), new Pose(61.836, 26.8194)))
-                    .setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(111.5))
+                    .addPath(new BezierLine(
+                            new Pose(87.809, 8.027),
+                            new Pose(79.5, 16)
+                    ))
+                    .setLinearHeadingInterpolation(
+                            Math.toRadians(90),
+                            Math.toRadians(65)   // ← FIXED
+                    )
                     .build();
 
-            // go parcare-shooting
+            // ===== Path1: shooting → park shooting =====
             Path1 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(61.836, 26.8194), new Pose(46.672, 59.278)))
-                    .setLinearHeadingInterpolation(Math.toRadians(111.5), Math.toRadians(180))
+                    .addPath(new BezierLine(
+                            new Pose(79.5, 20.2),
+                            new Pose(109, 9)
+                    ))
+                    .setLinearHeadingInterpolation(
+                            Math.toRadians(65),   // ← FIXED
+                            Math.toRadians(0)
+                    )
                     .build();
-
-            // go shooting prima linie
+/*
+            // ===== Path2: go take first line =====
             Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(46.672, 59.278), new Pose(20.365, 59.278)))
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+                    .addPath(new BezierLine(
+                            new Pose(75, 31.5),
+                            new Pose(100, 31.5)
+                    ))
+                    .setConstantHeadingInterpolation(Math.toRadians(0))
                     .build();
-
-            // ia prima linie -> back to shooting
-            Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(25.365, 59.278), new Pose(61.836, 26.8194)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
+*/
+            // ===== Path3: back to shooting =====
+           /* Path3 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(100, 31.5),
+                            new Pose(129.5, 16)
+                    ))
+                    .setLinearHeadingInterpolation(
+                            Math.toRadians(0),
+                            Math.toRadians(90)   // ← FIXED
+                    )
                     .build();
-
-            // merge player uman
-            Path4 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(61.836, 26.8194), new Pose(33.229, 50.786)))
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
+*/
+            // ===== Path4: go to human player =====
+           /* Path4 = follower.pathBuilder()
+                    .addPath(new BezierLine(
+                            new Pose(82.164, 26.8194),
+                            new Pose(90, 40.786)   // mirrored HP
+                    ))
+                    .setConstantHeadingInterpolation(Math.toRadians(0))
                     .build();
-
-            // ia de la human player
-      /*      Path5 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(33.229, 50.786), new Pose(9.049, 50.786)))
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();*/
-
-            // back to shooting
-          /*  Path6 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(9.049, 10.786), new Pose(61.836, 26.8194)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
-                    .build();*/
+        }*/
         }
-    }
-}
+
+    }}//121  9.9

@@ -1,4 +1,4 @@
-package org.firstinspires.ftc.teamcode.pedroPathing.Auto;
+package org.firstinspires.ftc.teamcode.pedroPathing.AutoTest;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
@@ -15,10 +15,11 @@ import com.pedropathing.geometry.BezierLine;
 import com.pedropathing.follower.Follower;
 import com.pedropathing.paths.PathChain;
 import com.pedropathing.geometry.Pose;
+import com.qualcomm.robotcore.util.Range;
 
-@Autonomous(name = "AutoRedClose", group = "Autonomous")
+@Autonomous(name = "&BlueFarTest", group = "Autonomous")
 @Configurable
-public class CloseRosu extends OpMode {
+public class FarBlue extends OpMode {
 
     /* ===================== TELEMETRY ===================== */
     private TelemetryManager panelsTelemetry;
@@ -36,17 +37,19 @@ public class CloseRosu extends OpMode {
         - Stage 0: run Path0
         - Stage 1: shoot (BLOCK until shooting finishes)
         - Stage 2: run Path1
-        - Stage 3: run Path2 activate intake
-        - Stage 4: run Path3 takes the balls
-        - Stage 5:run Path 4
-        - stage 6 : shoot
-
+        - Stage 3: run Path2
+        - Stage 4: run Path3
+        - Stage 5: shoot (BLOCK)
+        - Stage 6: run Path4
+        - Stage 7: run Path5
+        - Stage 8: run Path6
+        - Stage 9: shoot (BLOCK)
+        - Stage 10: done
      */
 
     /* ===================== DELAY GATE ===================== */
     ElapsedTime autoDelay = new ElapsedTime();
     boolean waiting = false;
-    DcMotorEx tureta;
     final double COMMAND_DELAY = 0.0; // set to 0 for instant; change if you want a pause before each shoot
 
     private boolean delayDone() {
@@ -64,6 +67,8 @@ public class CloseRosu extends OpMode {
 
     /* ===================== HARDWARE ===================== */
     DcMotor intake;
+    DcMotorEx tureta;
+
     DcMotorEx flywheel;
     Servo spinnerCLose, spinnerFar, ejector;
     ColorSensor colorsensorSLot1, colorsensorSLot2, colorsensorSLot3;
@@ -73,11 +78,11 @@ public class CloseRosu extends OpMode {
     static final double FLYWHEEL_TICKS_PER_REV = 28.0;
 
     // imported from TeleOp shooter
-    public static double TARGET_RPM = 2500;
-    public static double kP_v = 10;
+    public static double TARGET_RPM = 3055.0;
+    public static double kP_v = 14.8;
     public static final double kI_v = 0.0;
     public static final double kD_v = 0.0;
-    public static double kF_v = 14;
+    public static double kF_v = 12.8;
 
     private double targetTPS;
     private double rpm = 0.0;
@@ -144,15 +149,25 @@ public class CloseRosu extends OpMode {
     private int outtakeStep = 0;
     private long stepStartMs = 0;
 
-    private static final double RPM_TOL = 50.0;
+    private static final double RPM_TOL = 60.0;
     private static final long RPM_STABLE_MS = 80;
     private long rpmInRangeSinceMs = 0;
     private Pose robotPose;
 
+    /* ===================== FLYWHEEL KICK START ===================== */
+
+    public static double KICK_RPM = 3600;     // overshoot target
+    public static double KICK_TIME = 0.45;    // seconds
+    public static double KICK_F_EXTRA = 3.0;  // extra feedforward during kick
+
+    private boolean kickActive = true;
+    private ElapsedTime kickTimer = new ElapsedTime();
+
+
 
     private boolean rpmInRangeStable() {
         // exactly your TeleOp asymmetric gate: [TARGET-100, TARGET+20]
-        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 50.0));
+        boolean inRange = (rpm >= (TARGET_RPM - RPM_TOL)) && (rpm <= (TARGET_RPM + 60.0));
         long now = System.currentTimeMillis();
 
         if (!inRange) {
@@ -182,8 +197,7 @@ public class CloseRosu extends OpMode {
         panelsTelemetry = PanelsTelemetry.INSTANCE.getTelemetry();
 
         follower = Constants.createFollower(hardwareMap);
-        follower.setStartingPose(new Pose(121, 125, Math.toRadians(-145)));
-
+        follower.setStartingPose(new Pose(56.327, 8.027, Math.toRadians(90)));
         paths = new Paths(follower);
 
         intake = hardwareMap.get(DcMotor.class, "intake");
@@ -192,9 +206,11 @@ public class CloseRosu extends OpMode {
         flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
         tureta = hardwareMap.get(DcMotorEx.class,"tureta");
-        tureta.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
         tureta.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+        tureta.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        kickActive = true;
+        kickTimer.reset();
 
 
         // you had REVERSE in your code
@@ -205,7 +221,7 @@ public class CloseRosu extends OpMode {
         ejector      = hardwareMap.get(Servo.class, "ejector");
 
         trajectoryAngleModifier = hardwareMap.get(Servo.class, "unghituretaoy");
-        trajectoryAngleModifier.setPosition(0);
+        trajectoryAngleModifier.setPosition(0.0600);
 
         colorsensorSLot1 = hardwareMap.colorSensor.get("Color1");
         colorsensorSLot2 = hardwareMap.colorSensor.get("Color2");
@@ -228,7 +244,7 @@ public class CloseRosu extends OpMode {
         outtakeMode = false;
         spinIntake = false;
 
-        Posspinner = 0;
+        setSpinnerTarget(0);
         slotIntakeIndex = 0;
 
         launchPrepActive = false;
@@ -244,6 +260,59 @@ public class CloseRosu extends OpMode {
         shootStageStarted = false;
         waiting = false;
     }
+    /* ===================== SPINNER SERVO CONTROLLER ===================== */
+
+    private static final double SPINNER_FAR_OFFSET   = -0.010;
+    private static final double SPINNER_CLOSE_OFFSET = -0.010;
+
+    private static final double SPINNER_OVERSHOOT = 0.010;
+    private static final double SPINNER_OVERSHOOT_TIME_S = 0.06;
+    private static final double SPINNER_TARGET_EPS = 0.0015;
+
+    private double spinnerTarget = 0.0;
+    private double spinnerCmd = 0.0;
+    private double spinnerLastTarget = 0.0;
+
+    private boolean spinnerInOvershoot = false;
+    private double spinnerOvershootCmd = 0.0;
+    private final ElapsedTime spinnerMoveTimer = new ElapsedTime();
+
+    private void setSpinnerTarget(double target) {
+        spinnerTarget = Range.clip(target, 0.0, 1.0);
+    }
+
+    private void updateSpinnerServos() {
+        if (Math.abs(spinnerTarget - spinnerLastTarget) > SPINNER_TARGET_EPS) {
+            spinnerLastTarget = spinnerTarget;
+
+            double dir = Math.signum(spinnerTarget - spinnerCmd);
+            if (dir == 0) dir = 1.0;
+
+            spinnerOvershootCmd = Range.clip(spinnerTarget + dir * SPINNER_OVERSHOOT, 0.0, 1.0);
+            spinnerInOvershoot = true;
+            spinnerMoveTimer.reset();
+        }
+
+        if (spinnerInOvershoot) {
+            spinnerCmd = spinnerOvershootCmd;
+            if (spinnerMoveTimer.seconds() >= SPINNER_OVERSHOOT_TIME_S) {
+                spinnerInOvershoot = false;
+                spinnerCmd = spinnerTarget;
+            }
+        } else {
+            spinnerCmd = spinnerTarget;
+        }
+
+        double farPos   = Range.clip(spinnerCmd + SPINNER_FAR_OFFSET,   0.0, 1.0);
+        double closePos = Range.clip(spinnerCmd + SPINNER_CLOSE_OFFSET, 0.0, 1.0);
+
+        spinnerFar.setPosition(farPos);
+        spinnerCLose.setPosition(closePos);
+    }
+
+
+
+
 
     /* ===================== LOOP ===================== */
     @Override
@@ -252,6 +321,8 @@ public class CloseRosu extends OpMode {
 
         updateFlywheel();
         updateCulori();
+        updateSpinnerServos();
+
         robotPose = follower.getPose();
 
 
@@ -263,21 +334,17 @@ public class CloseRosu extends OpMode {
         // auto park at launch when full
         autoLaunchPrepLogic();
 
-        // apply offsets to spindexer servos
-        double appliedSpinnerPos = Posspinner + SPINDEXER_INTAKE_OFFSET;
-        if (outtakeMode) {
-            appliedSpinnerPos = Posspinner + SPINDEXER_OUTTAKE_OFFSET;
-        }
-        spinnerFar.setPosition(appliedSpinnerPos);
-        spinnerCLose.setPosition(appliedSpinnerPos);
+
+
 
         // ===================== AUTONOMOUS FSM =====================
         switch (autoStage) {
 
             // Stage 0: run Path0
             case 0:
+                if (outtakeMode) break; // safety
                 if (!pathStarted) {
-                    follower.followPath(paths.Path0, 0.7, true);
+                    follower.followPath(paths.Path0, 1, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -292,6 +359,7 @@ public class CloseRosu extends OpMode {
             case 1:
                 if (!shootStageStarted) {
                     if (delayDone()) {
+                        intake.setPower(1);
                         startOuttake();
                         shootStageStarted = true;
                     }
@@ -306,8 +374,9 @@ public class CloseRosu extends OpMode {
 
             // Stage 2: run Path1
             case 2:
+                if (outtakeMode) break;
                 if (!pathStarted) {
-                    follower.followPath(paths.Path1, 1, true);
+                    follower.followPath(paths.Path1, 1.0, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
@@ -316,156 +385,89 @@ public class CloseRosu extends OpMode {
                 }
                 break;
 
-            // Stage 3: run Path2 (intake ON)
             case 3:
+                if (outtakeMode) break;
+
                 intakeMode = true;
                 spinIntake = true;
                 intake.setPower(1);
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path2, 0.3, true);
+                    follower.followPath(paths.Path2, 0.25, true);
                     pathStarted = true;
                 }
+
+                if (isSpindexerFull()) {
+                    pathStarted = false;                // reset state
+                    follower.followPath(paths.Path3, 1.0, true);
+                    autoStage = 4;
+                    break;
+                }
+
                 if (!follower.isBusy()) {
                     pathStarted = false;
                     autoStage = 4;
                 }
                 break;
 
-            // Stage 4: run Path3 (intake OFF, take the balls)
+            // Stage 4: run Path3 (intake OFF)
             case 4:
+                if (outtakeMode) break;
                 intakeMode = false;
                 spinIntake = false;
-                intake.setPower(0);
+              //  intake.setPower(-0.5);//trebuie tunat fizic ca sa nu arunce si bila de pe slot doar in caz ca e una
+                //in plus
 
                 if (!pathStarted) {
-                    follower.followPath(paths.Path3, 1, true);
+                    follower.followPath(paths.Path3, 1.0,true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
                     pathStarted = false;
                     waiting = false;
                     shootStageStarted = false;
-                    autoStage = 5;
+                    autoStage = 5; // shoot after Path3
                 }
                 break;
 
-            // Stage 5: run Path4
-// Stage 5: run last path (same as Path3)
+            // Stage 5: SHOOT after Path3 (BLOCK)
             case 5:
-                if (!pathStarted) {
-                    follower.followPath(paths.Path3, true); // use Path3
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 6; // move to shooting stage
+                if (!shootStageStarted) {
+                    if (delayDone()) {
+                        startOuttake();
+                        shootStageStarted = true;
+                    }
+                } else {
+                    if (!outtakeMode) {
+                        shootStageStarted = false;
+                        waiting = false;
+                        autoStage = 6;
+                    }
                 }
                 break;
 
-
-
-            // Stage 6: SHOOT after Path4
+            // Stage 6: run Path4
             case 6:
-                if (!shootStageStarted) {
-                    if (delayDone()) {
-                        startOuttake();
-                        shootStageStarted = true;
-                    }
-                } else {
-                    if (!outtakeMode) {
-                        shootStageStarted = false;
-                        waiting = false;
-                        autoStage = 7; // DONE
-                    }
-                }
-                break;
-
-            // Stage 7: DONE
-            // Stage 7: go to 55,117 (intake ON)
-            case 7:
-                intakeMode = true;
-                spinIntake = true;
-                intake.setPower(1);
-
+                if (outtakeMode) break;
                 if (!pathStarted) {
-                    follower.followPath(paths.Path5, 1, true);
+                    follower.followPath(paths.Path4, true);
                     pathStarted = true;
                 }
                 if (!follower.isBusy()) {
                     pathStarted = false;
-                    autoStage = 8;
+                    autoStage = 7;
                 }
                 break;
 
-// Stage 8: go to 15,117 (slow)
-            case 8:
-                if (!pathStarted) {
-                    follower.followPath(paths.Path6, 0.4, true); // slow power
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 9;
-                }
-                break;
+            // Stage 7:
 
-// Stage 9: go to 55,93 and shoot
-            case 9:
-                intakeMode = false;
-                spinIntake = false;
-                intake.setPower(0);
-
-                if (!pathStarted) {
-                    follower.followPath(paths.Path7, 1, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 10; // shoot stage
-                }
-                break;
-
-// Stage 10: SHOOT
+            // Stage 10: DONE
             case 10:
-                if (!shootStageStarted) {
-                    if (delayDone()) {
-                        startOuttake();
-                        shootStageStarted = true;
-                    }
-                } else {
-                    if (!outtakeMode) {
-                        shootStageStarted = false;
-                        waiting = false;
-                        autoStage = 11; // DONE
-                    }
-                }
-                break;
-
-// Stage 11: DONE
-// Stage 11: go to FINAL park (45,86)
-            case 11:
-                if (!pathStarted) {
-                    follower.followPath(paths.Path8, 0.7, true);
-                    pathStarted = true;
-                }
-                if (!follower.isBusy()) {
-                    pathStarted = false;
-                    autoStage = 12;
-                }
-                break;
-
-            // Stage 12: FINAL DONE
-            case 12:
                 intake.setPower(0);
-                tureta.setTargetPosition(545);
-                tureta.setPower(0.1);
-                tureta.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                requestOpModeStop();
+
                 break;
-
-
         }
-
 
         // run shooter FSM after stage logic
         if (outtakeMode) {
@@ -486,7 +488,6 @@ public class CloseRosu extends OpMode {
         panelsTelemetry.debug("Flywheel RPM", rpm);
         panelsTelemetry.debug("Flywheel Target", TARGET_RPM);
         panelsTelemetry.debug("rpmStable", rpmInRangeStable());
-        panelsTelemetry.debug("tureta ticks", tureta.getCurrentPosition());
 
 
         panelsTelemetry.update(telemetry);
@@ -499,7 +500,6 @@ public class CloseRosu extends OpMode {
         spinIntake = false;
 
         // feeding during shooting (with REVERSE direction, power(1) is "reverse")
-        intake.setPower(1);
 
         // prevent launch-hold overwriting during sequence
         launchPrepActive = false;
@@ -508,21 +508,33 @@ public class CloseRosu extends OpMode {
         outtakeStep = 0;
         stepStartMs = System.currentTimeMillis();
         rpmInRangeSinceMs = 0;
+
     }
 
     /* ===================== FLYWHEEL ===================== */
     private void updateFlywheel() {
-        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF_v);
 
-        targetTPS = TARGET_RPM * FLYWHEEL_TICKS_PER_REV / 60.0;
+        boolean inKick = kickActive && kickTimer.seconds() < KICK_TIME;
+
+        double rpmTarget = inKick ? KICK_RPM : TARGET_RPM;
+        double kF = inKick ? (kF_v + KICK_F_EXTRA) : kF_v;
+
+        flywheel.setVelocityPIDFCoefficients(kP_v, kI_v, kD_v, kF);
+
+        targetTPS = rpmTarget * FLYWHEEL_TICKS_PER_REV / 60.0;
         flywheel.setVelocity(targetTPS);
 
         rpm = flywheel.getVelocity() / FLYWHEEL_TICKS_PER_REV * 60.0;
+
+        // turn kick off once real target reached
+        if (kickActive && rpm >= TARGET_RPM - 50) {
+            kickActive = false;
+        }
     }
+
 
     /* ===================== OUTTAKE SEQUENCE (TeleOp shooter FSM) ===================== */
     private void runOuttake() {
-        // keep feeding while shooting
         intake.setPower(1);
 
         long now = System.currentTimeMillis();
@@ -546,7 +558,7 @@ public class CloseRosu extends OpMode {
                 Color3 = 0;
 
                 // start at launch position
-                Posspinner = 0.085;
+                setSpinnerTarget(0.085);
 
                 rpmInRangeSinceMs = 0;
                 startStep(1);
@@ -573,7 +585,7 @@ public class CloseRosu extends OpMode {
 
             case 4:
                 if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-                    Posspinner = 0.28;
+                    setSpinnerTarget(0.28);
                     startStep(5);
                 }
                 break;
@@ -602,7 +614,7 @@ public class CloseRosu extends OpMode {
 
             case 8:
                 if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
-                    Posspinner = 0.46;
+                    setSpinnerTarget(0.46);
                     startStep(9);
                 }
                 break;
@@ -633,16 +645,15 @@ public class CloseRosu extends OpMode {
                 if (dt >= OUTTAKE_EJECTOR_DOWN_MS) {
 
                     // end
-                    Posspinner = 0;
+                    setSpinnerTarget(0);
 
                     outtakeMode = false;
 
                     intakeMode = false;
                     spinIntake = false;
-                    intake.setPower(0);
 
                     slotIntakeIndex = 0;
-                    Posspinner = 0;
+                    setSpinnerTarget(0);
 
                     launchPrepActive = false;
                     resetIntakeGatingAndFilters();
@@ -799,7 +810,8 @@ public class CloseRosu extends OpMode {
 
             slotIntakeIndex++;
             slotIntakeIndex = slotIntakeIndex % 3;
-            Posspinner = slotPositionsIntake[slotIntakeIndex];
+            setSpinnerTarget(slotPositionsIntake[slotIntakeIndex]);
+
 
             waitingForClear = true;
             detectionLocked = true;
@@ -818,93 +830,68 @@ public class CloseRosu extends OpMode {
             launchPrepActive = true;
         }
         if (launchPrepActive) {
-            Posspinner = SPINNER_LAUNCH_POS;
+            setSpinnerTarget(SPINNER_LAUNCH_POS);
         }
     }
 
     /* ===================== PATHS ===================== */
-    /* ===================== PATHS ===================== */
-
     public static class Paths {
         public PathChain Path0;
         public PathChain Path1;
         public PathChain Path2;
-        public PathChain Path3;
+        public PathChain Path3;public PathChain Path4;
 
-        public PathChain Path5;
-        public PathChain Path6;
-        public PathChain Path7;
-        public PathChain Path8;
 
         public Paths(Follower follower) {
+            Path0 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(56.000, 8.197),
 
-            // ================= BLUE → RED MIRROR =================
-            // Mirror rule:
-            //   X' = 144 - X
-            //   Y' = Y
-            //   Heading' = -Heading
+                                    new Pose(55.869, 24.000)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(90), Math.toRadians(114))
 
-            Path0 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(121, 125),   // mirrored start
-                            new Pose(159, 161)))    // mirror of (58,89)
-                    .setConstantHeadingInterpolation(Math.toRadians(-145))
                     .build();
 
-            Path1 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(159, 161),
-                            new Pose(159, 162)))
-                    .setLinearHeadingInterpolation(Math.toRadians(-145), Math.toRadians(-180))
+            Path1 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(55.869, 24.000),
+
+                                    new Pose(44.623, 35.197)
+                            )
+                    ).setConstantHeadingInterpolation(Math.toRadians(180))
+
                     .build();
 
-            Path2 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(159, 162),///done
-                            new Pose(124, 161)))
-                    .setConstantHeadingInterpolation(Math.toRadians(-180))
+            Path2 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(44.623, 35.197),
+
+                                    new Pose(12.770, 35.328)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(180))
+
                     .build();
 
-            Path3 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(124, 161),//done
-                            new Pose(159, 161)))
-                    .setLinearHeadingInterpolation(Math.toRadians(-180), Math.toRadians(-145))
+            Path3 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(12.770, 35.328),
+
+                                    new Pose(56.066, 23.787)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(114))
+
                     .build();
+            //path4 parcare
+            Path4 = follower.pathBuilder().addPath(
+                            new BezierLine(
+                                    new Pose(12.770, 35.328),
 
-            // ======== Extra cycles ========
+                                    new Pose(56.066, 23.787)
+                            )
+                    ).setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(114))
 
-            Path5 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(159, 161),
-                            new Pose(163, 184)))
-                    .setLinearHeadingInterpolation(Math.toRadians(-145), Math.toRadians(-180))
-                    .build();
-
-            Path6 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(163, 184),
-                            new Pose(123, 184)))
-                    .setConstantHeadingInterpolation(Math.toRadians(-180))
-                    .build();
-
-            Path7 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(123, 184),//done
-                            new Pose(159, 161)))
-                    .setLinearHeadingInterpolation(Math.toRadians(-180), Math.toRadians(-145))
-                    .build();
-
-            Path8 = follower.pathBuilder()
-                    .addPath(new BezierLine(
-                            new Pose(159, 161),
-                            new Pose(155, 180)))
-                    .setLinearHeadingInterpolation(Math.toRadians(-145), Math.toRadians(-145))
                     .build();
         }
     }
-
-
-
 }
-//155 171

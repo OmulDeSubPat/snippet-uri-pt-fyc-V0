@@ -410,7 +410,7 @@ public class AutoTibiRed extends OpMode {
 
             // Stage 5: SHOOT after Path3 (BLOCK)
             case 5:
-                intake.setPower(0);
+                intake.setPower(1);
                 if (!shootStageStarted) {
                     if (delayDone()) {
                         startOuttake();
@@ -660,7 +660,6 @@ public class AutoTibiRed extends OpMode {
 
                     intakeMode = false;
                     spinIntake = false;
-                    intake.setPower(0);
 
                     slotIntakeIndex = 0;
                     setSpinnerTarget(0);

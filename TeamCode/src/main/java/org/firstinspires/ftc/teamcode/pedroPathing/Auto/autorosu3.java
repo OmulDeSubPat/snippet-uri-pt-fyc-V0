@@ -542,7 +542,6 @@ public class autorosu3 extends OpMode {
 
     /* ===================== OUTTAKE SEQUENCE (TeleOp shooter FSM) ===================== */
     private void runOuttake() {
-        // keep feeding while shooting
         intake.setPower(1);
 
         long now = System.currentTimeMillis();
@@ -659,7 +658,6 @@ public class autorosu3 extends OpMode {
 
                     intakeMode = false;
                     spinIntake = false;
-                    intake.setPower(0);
 
                     slotIntakeIndex = 0;
                     setSpinnerTarget(0);

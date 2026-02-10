@@ -762,6 +762,40 @@ public class experimental2 extends LinearOpMode {
         InitServo();
         initLocalization();
 
+        // HARD RESET from Auto
+        spinnerBaseTarget = 0;
+        spinnerTrim = 0;
+        spinnerCmd = 0;
+        spinnerLastTarget = 999;   // force first update to move
+        spinnerInOvershoot = false;
+
+        spinnerFar.setPosition(0);
+        spinnerCLose.setPosition(0);
+
+        ejector.setPosition(ejectorDown);
+
+        logicalSlots[0] = 0;
+        logicalSlots[1] = 0;
+        logicalSlots[2] = 0;
+
+        for (int i = 0; i < lastNIntake.length; i++) lastNIntake[i] = 0;
+        idxIntake = 0;
+
+        waitingForClear = false;
+        detectionLocked = false;
+        spinnerMoving = false;
+        colorPending = false;
+        launchPrepActive = false;
+
+        slotIntakeIndex = 0;
+
+        outtakeMode = false;
+        intakeMode = false;
+
+        flywheel.setPower(0);
+        flywheel.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+
         waitForStart();
 
         trimTimer.reset();

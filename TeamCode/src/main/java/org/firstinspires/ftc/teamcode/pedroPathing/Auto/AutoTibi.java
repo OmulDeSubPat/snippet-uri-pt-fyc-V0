@@ -312,6 +312,8 @@ public class AutoTibi extends OpMode {
 
 
 
+
+
     /* ===================== LOOP ===================== */
     @Override
     public void loop() {
@@ -357,6 +359,7 @@ public class AutoTibi extends OpMode {
             case 1:
                 if (!shootStageStarted) {
                     if (delayDone()) {
+                        intake.setPower(1);
                         startOuttake();
                         shootStageStarted = true;
                     }
@@ -382,9 +385,9 @@ public class AutoTibi extends OpMode {
                 }
                 break;
 
-            // Stage 3: run Path2 (intake ON)
             case 3:
                 if (outtakeMode) break;
+
                 intakeMode = true;
                 spinIntake = true;
                 intake.setPower(1);
@@ -393,6 +396,14 @@ public class AutoTibi extends OpMode {
                     follower.followPath(paths.Path2, 0.25, true);
                     pathStarted = true;
                 }
+
+                if (isSpindexerFull()) {
+                    pathStarted = false;                // reset state
+                    follower.followPath(paths.Path3, 1.0, true);
+                    autoStage = 4;
+                    break;
+                }
+
                 if (!follower.isBusy()) {
                     pathStarted = false;
                     autoStage = 4;
@@ -404,7 +415,8 @@ public class AutoTibi extends OpMode {
                 if (outtakeMode) break;
                 intakeMode = false;
                 spinIntake = false;
-                intake.setPower(-1);
+                intake.setPower(-0.5);//trebuie tunat fizic ca sa nu arunce si bila de pe slot doar in caz ca e una
+                //in plus
 
                 if (!pathStarted) {
                     follower.followPath(paths.Path3, 1.0,true);
@@ -420,7 +432,6 @@ public class AutoTibi extends OpMode {
 
             // Stage 5: SHOOT after Path3 (BLOCK)
             case 5:
-                intake.setPower(0);
                 if (!shootStageStarted) {
                     if (delayDone()) {
                         startOuttake();
@@ -489,7 +500,6 @@ public class AutoTibi extends OpMode {
         spinIntake = false;
 
         // feeding during shooting (with REVERSE direction, power(1) is "reverse")
-        intake.setPower(0);
 
         // prevent launch-hold overwriting during sequence
         launchPrepActive = false;
@@ -498,6 +508,7 @@ public class AutoTibi extends OpMode {
         outtakeStep = 0;
         stepStartMs = System.currentTimeMillis();
         rpmInRangeSinceMs = 0;
+
     }
 
     /* ===================== FLYWHEEL ===================== */
@@ -524,7 +535,6 @@ public class AutoTibi extends OpMode {
 
     /* ===================== OUTTAKE SEQUENCE (TeleOp shooter FSM) ===================== */
     private void runOuttake() {
-        // keep feeding while shooting
         intake.setPower(1);
 
         long now = System.currentTimeMillis();
@@ -641,7 +651,6 @@ public class AutoTibi extends OpMode {
 
                     intakeMode = false;
                     spinIntake = false;
-                    intake.setPower(0);
 
                     slotIntakeIndex = 0;
                     setSpinnerTarget(0);
@@ -853,23 +862,13 @@ public class AutoTibi extends OpMode {
                     .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
                     .build();
 
-            // merge player uman
+            // parcare
             Path4 = follower.pathBuilder()
                     .addPath(new BezierLine(new Pose(61.836, 26.8194), new Pose(33.229, 50.786)))
                     .setConstantHeadingInterpolation(Math.toRadians(180))
                     .build();
 
-            // ia de la human player
-      /*      Path5 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(33.229, 50.786), new Pose(9.049, 50.786)))
-                    .setConstantHeadingInterpolation(Math.toRadians(180))
-                    .build();*/
 
-            // back to shooting
-          /*  Path6 = follower.pathBuilder()
-                    .addPath(new BezierLine(new Pose(9.049, 10.786), new Pose(61.836, 26.8194)))
-                    .setLinearHeadingInterpolation(Math.toRadians(180), Math.toRadians(111.5))
-                    .build();*/
         }
     }
 }
